@@ -1,7 +1,30 @@
-html, body, #root {
-  width: 100%;
-  min-height: 100vh;
+/* Polices auto-hébergées (variables, sous-ensemble latin) : aucune requête vers un CDN. */
+@font-face {
+  font-family: 'Hanken Grotesk';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('./assets/fonts/hanken-grotesk-latin.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url('./assets/fonts/jetbrains-mono-latin.woff2') format('woff2');
+}
+
+html,
+body,
+#root {
   margin: 0;
-  padding: 0;
-  background-color: #0f172a;
+  min-height: 100vh;
+  background: #04070d;
+}
+
+html[data-theme='light'],
+html[data-theme='light'] body,
+html[data-theme='light'] #root {
+  background: #edf2fb;
 }

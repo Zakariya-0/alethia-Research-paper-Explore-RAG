@@ -72,7 +72,7 @@ Le système est piloté par un graphe d'états **LangGraph** articulé autour de
 
 | Composant | Technologie | Justification |
 | :--- | :--- | :--- |
-| **LLM Local** | [Ollama](https://ollama.com/) (`Llama 3.1 8B` ou `Qwen 2.5 7B`) | Inférence locale rapide, 0€ de coût API, confidentialité totale |
+| **LLM** | [Groq](https://console.groq.com/) via `init_chat_model` (LangChain) ; fournisseur et modèle réglables par variables d'environnement | Rédaction de la réponse et reformulation des requêtes. API distante : seuls le claim et les passages récupérés lui sont envoyés. Désactivable (`LLM_ENABLED=false`) |
 | **Embeddings** | `bge-small-en-v1.5` (*sentence-transformers*) | Modèle d'embeddings dense compact et précis pour l'anglais scientifique |
 | **Base Vectorielle** | [ChromaDB](https://www.trychroma.com/) (ou FAISS) | Base vectorielle embarquée et persistante en local |
 | **Recherche Lexicale** | `rank_bm25` | Complémentaire au dense retrieval pour les acronymes et termes exacts |
@@ -88,7 +88,8 @@ Le système est piloté par un graphe d'états **LangGraph** articulé autour de
 
 ### Prérequis
 * **Python 3.12** installé sur votre machine
-* **[Ollama](https://ollama.com/download)** installé et en cours d'exécution
+* **Node.js** (pour construire l'interface React)
+* Une **clé API Groq** (gratuite : https://console.groq.com/keys) pour la réponse rédigée. Sans clé, le pipeline fonctionne quand même, sans réponse rédigée.
 
 ### 1. Cloner le projet
 ```bash
@@ -108,17 +109,43 @@ py -3.12 -m venv venv
 pip install -r requirements.txt
 ```
 
-### 4. Télécharger le modèle de langage local
+### 4. Configurer le LLM (Groq)
 ```powershell
-ollama pull llama3.1:8b
-# ou version plus légère sur CPU :
-ollama pull llama3.2:3b
+copy .env.example .env
+# puis éditez .env : GROQ_API_KEY=<votre clé>
 ```
+Variables d'environnement (fichier `.env`, jamais commité) :
 
-### 5. Lancer l'interface Streamlit
+| Variable | Défaut | Rôle |
+| :--- | :--- | :--- |
+| `GROQ_API_KEY` | (vide) | Clé API Groq. Absente : le LLM est désactivé, le reste fonctionne |
+| `LLM_PROVIDER` | `groq` | Fournisseur passé à `init_chat_model` |
+| `LLM_MODEL` | `llama-3.3-70b-versatile` | Modèle ([liste Groq](https://console.groq.com/docs/models)) |
+| `LLM_ENABLED` | `true` | `false` désactive toute génération |
+| `LLM_TEMPERATURE`, `LLM_TIMEOUT_SECONDS`, `LLM_MAX_RETRIES`, `LLM_MAX_TOKENS` | `0`, `30`, `2`, `800` | Réglages d'appel |
+| `LLM_ANSWER_LANGUAGE` | `French` | Langue de la réponse rédigée |
+
+### 5. Construire le corpus, puis lancer l'application
 ```powershell
-streamlit run app.py
+python scripts/run_collector.py --limit 100
+python scripts/run_chunker.py
+python scripts/run_indexer.py --reset
+python scripts/run_hybrid_search.py --reindex      # construit l'index BM25
+cd frontend; npm ci; npm run build; cd ..
+python scripts/run_api.py                          # option : --port 8001 si le 8000 est occupé
 ```
+Ouvrez ensuite http://127.0.0.1:8000. (Développement de l'interface : `npm run dev` dans `frontend/`, avec `VITE_API_TARGET` si l'API n'est pas sur le port 8000.)
+
+**Interface** : design ALETHIA (thèmes sombre/clair, graphe d'évidence animé), polices auto-hébergées dans `frontend/src/assets/fonts/`. La progression des agents est lue en temps réel sur `/api/verify/stream` (SSE), boucle de rétroaction comprise. Le nom du produit se change dans `frontend/src/brand.js`.
+
+### Docker (alternative aux étapes 2 à 5)
+Une seule image contient l'API et l'interface. Le corpus (`data/`) est monté en volume et la clé Groq est lue dans `.env` au lancement (jamais copiée dans l'image) :
+```powershell
+docker compose up --build -d      # puis http://127.0.0.1:8001 (APP_PORT pour changer le port)
+docker compose logs -f            # suivre le démarrage
+docker compose down               # arrêter
+```
+Le premier démarrage télécharge les modèles Hugging Face (≈ 0,5 Go) dans le volume `hf_cache`. Si `data/` est vide, construisez le corpus dans le conteneur : `docker compose run --rm app python scripts/run_collector.py --limit 100`, puis `run_chunker.py`, `run_indexer.py --reset` et `run_hybrid_search.py --reindex`.
 
 ---
 
