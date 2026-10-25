@@ -6,6 +6,8 @@ Ce fichier centralise les chemins de dossiers, les paramètres de collecte et le
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 # ==============================================================================
 # 1. CHEMINS DU PROJET (Arborescence)
 # ==============================================================================
@@ -13,14 +15,18 @@ from pathlib import Path
 # Racine du projet (dossier Projet-S5)
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Variables d'environnement : le fichier .env (ignoré par Git) ne remplace jamais
+# une variable déjà définie dans le système.
+load_dotenv(BASE_DIR / ".env", override=False)
+
 # Dossier principal des données (ignoré par Git pour ne pas surcharger le dépôt)
 DATA_DIR = BASE_DIR / "data"
 
 # Sous-dossiers spécifiques
-RAW_DATA_DIR = DATA_DIR / "raw"          # Métadonnées brutes en JSON/JSONL
-PROCESSED_DATA_DIR = DATA_DIR / "processed" # Chunks de texte nettoyés
-PDFS_DIR = DATA_DIR / "pdfs"             # PDFs téléchargés (si besoin)
-VECTOR_DB_DIR = DATA_DIR / "chroma_db"   # Persistance de la base vectorielle ChromaDB
+RAW_DATA_DIR = DATA_DIR / "raw"  # Métadonnées brutes en JSON/JSONL
+PROCESSED_DATA_DIR = DATA_DIR / "processed"  # Chunks de texte nettoyés
+PDFS_DIR = DATA_DIR / "pdfs"  # PDFs téléchargés (si besoin)
+VECTOR_DB_DIR = DATA_DIR / "chroma_db"  # Persistance de la base vectorielle ChromaDB
 
 # Fichier par défaut où sont stockés les articles collectés
 DEFAULT_METADATA_FILE = RAW_DATA_DIR / "arxiv_papers_metadata.jsonl"
@@ -88,6 +94,13 @@ DEFAULT_RERANK_TOP_K = 3
 # Nombre de candidats préliminaires extraits par la recherche hybride
 DEFAULT_RERANK_CANDIDATES = 15
 
+# Score minimal du Cross-Encoder (0.0 à 1.0) pour qu'un passage soit retenu.
+# En dessous, le passage est écarté avant l'évaluation NLI : un passage hors
+# sujet ne doit jamais servir de preuve. Valeur observée sur 100 articles :
+# passages hors sujet <= 0.002, passages pertinents >= 0.10 (à recalibrer
+# sur un benchmark comme SciFact).
+RERANK_MIN_RELEVANCE = 0.05
+
 
 # ==============================================================================
 # 6. PARAMÈTRES INFÉRENCE LOGIQUE NLI (DeBERTa-v3)
@@ -99,9 +112,9 @@ DEFAULT_NLI_MODEL = "cross-encoder/nli-deberta-v3-small"
 # Mapping officiel des labels pour cross-encoder/nli-deberta-v3-small
 # 0: contradiction, 1: entailment, 2: neutral
 NLI_LABEL_MAPPING = {
-    0: "REFUTES",     # Contredit l'affirmation
-    1: "SUPPORTS",    # Soutient l'affirmation
-    2: "NEUTRAL"      # Neutre / Preuves insuffisantes
+    0: "REFUTES",  # Contredit l'affirmation
+    1: "SUPPORTS",  # Soutient l'affirmation
+    2: "NEUTRAL",  # Neutre / Preuves insuffisantes
 }
 
 # Seuil de probabilité minimal pour considérer qu'un passage tranche nettement
@@ -147,8 +160,63 @@ ARXIV_BATCH_SIZE = 100
 
 
 # ==============================================================================
+# 8. PARAMÈTRES DU LLM (génération de la réponse, reformulation des requêtes)
+# ==============================================================================
+# Tout se règle par variables d'environnement (voir .env.example). Le LLM est
+# créé avec langchain.chat_models.init_chat_model : changer LLM_PROVIDER et
+# LLM_MODEL suffit pour changer de fournisseur (la clé API se lit dans la
+# variable propre au fournisseur, ex. GROQ_API_KEY).
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.getenv(name, default))
+    except ValueError:
+        return default
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, default))
+    except ValueError:
+        return default
+
+
+# Fournisseur et modèle (identifiants tels que les attend init_chat_model)
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "groq").strip().lower()
+LLM_MODEL = os.getenv("LLM_MODEL", "llama-3.3-70b-versatile").strip()
+
+# Interrupteur global : LLM_ENABLED=false désactive toute génération
+LLM_ENABLED = os.getenv("LLM_ENABLED", "true").strip().lower() not in (
+    "0",
+    "false",
+    "no",
+    "non",
+    "off",
+)
+
+# Paramètres d'appel
+LLM_TEMPERATURE = _env_float("LLM_TEMPERATURE", 0.0)
+LLM_TIMEOUT_SECONDS = _env_float("LLM_TIMEOUT_SECONDS", 30.0)
+LLM_MAX_RETRIES = _env_int("LLM_MAX_RETRIES", 2)
+LLM_MAX_TOKENS = _env_int("LLM_MAX_TOKENS", 800)
+
+# Langue de la réponse rédigée (le claim peut rester en anglais)
+LLM_ANSWER_LANGUAGE = os.getenv("LLM_ANSWER_LANGUAGE", "French").strip()
+
+# Variable d'environnement contenant la clé API, par fournisseur
+LLM_API_KEY_VARS = {
+    "groq": "GROQ_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
+    "mistralai": "MISTRAL_API_KEY",
+}
+
+
+# ==============================================================================
 # 3. CRÉATION AUTOMATIQUE DES DOSSIERS
 # ==============================================================================
+
 
 def init_directories():
     """

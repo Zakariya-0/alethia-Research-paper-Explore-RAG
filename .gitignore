@@ -54,3 +54,7 @@ weights/
 # Node / Frontend
 node_modules/
 frontend/node_modules/
+
+.claude/
+.agents
+skills-lock.json

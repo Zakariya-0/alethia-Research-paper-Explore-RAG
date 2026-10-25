@@ -22,7 +22,10 @@ Topologie du Graphe :
    ├─► (needs_feedback == True & retries < max) ────┘
    │
    ▼ (Preuves suffisantes OU max itérations atteint)
-[Agent Vérificateur]
+[Agent Générateur]  (réponse rédigée par le LLM ; ignoré si LLM inactif)
+   │
+   ▼
+[Agent Vérificateur]  (audit des citations, dont celles du LLM)
    │
    ▼
 [Agent Synthèse]
@@ -50,23 +53,28 @@ from src.agents.nodes import (
     analyzer_node,
     retriever_node,
     evaluator_node,
+    generator_node,
     verifier_node,
-    synthesis_node
+    synthesis_node,
 )
 
 logger = logging.getLogger(__name__)
 
 
-def route_evaluator_decision(state: VerificationState) -> Literal["analyseur", "verificateur"]:
+def route_evaluator_decision(
+    state: VerificationState,
+) -> Literal["analyseur", "generateur"]:
     """
     Fonction de routage conditionnel (Conditional Edge) :
     - Si l'Agent Évaluateur a positionné 'needs_feedback=True', on reboucle vers l'Agent Analyseur.
-    - Sinon, on continue le flux nominal vers l'Agent Vérificateur.
+    - Sinon, on continue le flux nominal vers l'Agent Générateur.
     """
     if state.get("needs_feedback", False):
-        logger.info(f"🔄 Rétroaction active déclenchée : {state.get('feedback_reason')}")
+        logger.info(
+            f"🔄 Rétroaction active déclenchée : {state.get('feedback_reason')}"
+        )
         return "analyseur"
-    return "verificateur"
+    return "generateur"
 
 
 def build_verification_graph() -> Any:
@@ -79,10 +87,11 @@ def build_verification_graph() -> Any:
     # 1. Instanciation du graphe d'états
     workflow = StateGraph(VerificationState)
 
-    # 2. Enregistrement des 5 nœuds agents
+    # 2. Enregistrement des 6 nœuds agents
     workflow.add_node("analyseur", analyzer_node)
     workflow.add_node("recuperateur", retriever_node)
     workflow.add_node("evaluateur", evaluator_node)
+    workflow.add_node("generateur", generator_node)
     workflow.add_node("verificateur", verifier_node)
     workflow.add_node("synthese", synthesis_node)
 
@@ -95,12 +104,10 @@ def build_verification_graph() -> Any:
     workflow.add_conditional_edges(
         "evaluateur",
         route_evaluator_decision,
-        {
-            "analyseur": "analyseur",
-            "verificateur": "verificateur"
-        }
+        {"analyseur": "analyseur", "generateur": "generateur"},
     )
 
+    workflow.add_edge("generateur", "verificateur")
     workflow.add_edge("verificateur", "synthese")
     workflow.add_edge("synthese", END)
 
@@ -115,8 +122,7 @@ verification_pipeline = build_verification_graph()
 
 
 def verify_claim_agentic(
-    claim: str,
-    max_feedback_iterations: int = 2
+    claim: str, max_feedback_iterations: int = 2
 ) -> Dict[str, Any]:
     """
     Point d'entrée de haut niveau pour exécuter la vérification multi-agents.
@@ -129,8 +135,7 @@ def verify_claim_agentic(
         État final complet après exécution de tous les agents.
     """
     initial_state = create_initial_state(
-        claim=claim,
-        max_feedback_iterations=max_feedback_iterations
+        claim=claim, max_feedback_iterations=max_feedback_iterations
     )
 
     final_state = verification_pipeline.invoke(initial_state)

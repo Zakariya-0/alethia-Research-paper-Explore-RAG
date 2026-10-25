@@ -8,21 +8,18 @@ from .state import (
     VerificationState,
     AgentLogEntry,
     create_initial_state,
-    format_agent_log
+    format_agent_log,
 )
 from .nodes import (
     ModelRegistry,
     analyzer_node,
     retriever_node,
     evaluator_node,
+    generator_node,
     verifier_node,
-    synthesis_node
+    synthesis_node,
 )
-from .graph import (
-    build_verification_graph,
-    verification_pipeline,
-    verify_claim_agentic
-)
+from .graph import build_verification_graph, verification_pipeline, verify_claim_agentic
 
 __all__ = [
     "VerificationState",
@@ -33,9 +30,10 @@ __all__ = [
     "analyzer_node",
     "retriever_node",
     "evaluator_node",
+    "generator_node",
     "verifier_node",
     "synthesis_node",
     "build_verification_graph",
     "verification_pipeline",
-    "verify_claim_agentic"
+    "verify_claim_agentic",
 ]
