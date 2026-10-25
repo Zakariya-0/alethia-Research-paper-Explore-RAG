@@ -1,0 +1,20 @@
+services:
+  app:
+    build: .
+    image: alethia:latest
+    ports:
+      # Port hôte 8001 (le 8000 est souvent pris par WSL/Docker) -> 8000 dans le conteneur
+      - "${APP_PORT:-8001}:8000"
+    env_file:
+      # La clé GROQ_API_KEY est lue au lancement, jamais copiée dans l'image
+      - path: .env
+        required: false
+    volumes:
+      # Corpus et index (FAISS, BM25) : modifiables sans reconstruire l'image
+      - ./data:/app/data
+      # Modèles Hugging Face (≈ 0,5 Go) : téléchargés une seule fois
+      - hf_cache:/home/app/.cache/huggingface
+    restart: unless-stopped
+
+volumes:
+  hf_cache:

@@ -1,0 +1,22 @@
+# Secrets et environnements locaux
+.env
+.env.*
+venv/
+.venv/
+
+# Données (montées en volume, cf. docker-compose.yml)
+data/
+
+# Frontend : reconstruit dans l'image
+frontend/node_modules/
+frontend/dist/
+
+# Divers
+.git/
+.claude/
+.agents/
+**/__pycache__/
+*.py[cod]
+*.log
+ANALYSE.md
+skills-lock.json
