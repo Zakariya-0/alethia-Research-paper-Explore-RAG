@@ -1,168 +1,396 @@
-# 🔬 Plateforme de Vérification de Claims Scientifiques par RAG et Agents IA
+# ALETHIA : vérification de claims scientifiques par RAG et agents IA
 
-[![Python 3.12](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/downloads/)
-[![LangGraph](https://img.shields.io/badge/Orchestration-LangGraph-orange.svg)](https://github.com/langchain-ai/langgraph)
-[![Ollama](https://img.shields.io/badge/LLM-Ollama%20(Local)-black.svg)](https://ollama.com/)
-[![ChromaDB](https://img.shields.io/badge/VectorStore-ChromaDB-purple.svg)](https://www.trychroma.com/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+Application web de vérification d'affirmations scientifiques (*claims*) en informatique. Elle interroge un corpus local d'abstracts arXiv (catégories `cs.*`) grâce à une recherche hybride, juge chaque passage par inférence en langage naturel (NLI), fait rédiger une réponse sourcée par un LLM, puis contrôle chaque citation avant de rendre un verdict chiffré.
 
-Plateforme autonome et **100 % locale** de vérification d'affirmations scientifiques (*claims*) en informatique (sections `cs.*` d'arXiv), combinant **recherche d'information hybride**, **modèles d'inférence en langage naturel (NLI)** et un **pipeline multi-agents à boucle active**.
+Projet de Semestre 5 (S5), cursus ingénieur / master informatique.
+
+## Sommaire
+
+1. [Présentation](#1-présentation)
+2. [Fonctionnalités](#2-fonctionnalités)
+3. [Architecture](#3-architecture)
+4. [Stack technique](#4-stack-technique)
+5. [Structure du dépôt](#5-structure-du-dépôt)
+6. [Installation et exécution](#6-installation-et-exécution)
+7. [Configuration](#7-configuration)
+8. [Utilisation](#8-utilisation)
+9. [Référence de l'API](#9-référence-de-lapi)
+10. [Limites connues](#10-limites-connues)
+11. [Évaluation et perspectives](#11-évaluation-et-perspectives)
+12. [Auteurs et encadrement](#12-auteurs-et-encadrement)
 
 ---
 
-## 📌 Présentation du Projet
+## 1. Présentation
 
-Face à la prolifération des publications scientifiques en informatique et aux risques critiques d'hallucinations des LLMs conventionnels (citations et DOI inventés), ce projet propose une alternative rigoureuse, auditable et sans dépendance au cloud :
+### Contexte et problème
 
-* **Zéro hallucination de citations :** Chaque extrait cité est validé **mot pour mot** dans l'article source.
-* **Honnêteté épistémique :** Le système sait répondre *"Preuves insuffisantes"* ou *"Sujet débattu"* au lieu de forcer une conclusion erronée.
-* **100 % Local & Gratuit :** Aucune donnée n'est transmise à des API tierces (respect de la confidentialité, coût nul).
+Le volume de publications en informatique croît plus vite que la capacité de les lire. Les assistants à base de LLM répondent vite, mais peuvent inventer des citations ou des références, sans que l'utilisateur puisse le détecter. Pour une affirmation scientifique, il faut au contraire savoir **sur quels textes** repose la réponse, et **dans quelle mesure** ils la soutiennent ou la contredisent.
+
+### Approche
+
+ALETHIA ne demande pas à un LLM de « savoir » : il lui demande de **rédiger à partir de passages récupérés**, puis vérifie son travail.
+
+1. Les passages pertinents sont retrouvés dans le corpus (BM25 et vecteurs, fusionnés, puis reclassés).
+2. Un modèle NLI dédié décide, passage par passage, s'il soutient, contredit ou ne tranche pas.
+3. Le LLM rédige une réponse courte avec des citations exactes.
+4. Chaque citation est recherchée telle quelle dans l'abstract stocké. Une citation introuvable est signalée, jamais masquée.
+5. Un score de confiance composite et un verdict à quatre états sont calculés, avec le détail de chaque dimension.
+
+Le système sait répondre **« Preuves insuffisantes »** ou **« Sujet débattu »** plutôt que de forcer une conclusion.
+
+### Ce que le projet n'est pas
+
+- Ce n'est pas un détecteur de vérité : le score est un indice pondéré, pas une probabilité que l'affirmation soit vraie.
+- Il ne lit que les **abstracts** du corpus indexé, pas les articles complets.
+- Il ne remplace pas la lecture des articles sources : l'interface fournit les liens arXiv et PDF.
 
 ---
 
-## 🏗️ Architecture du Système
+## 2. Fonctionnalités
 
-Le système est piloté par un graphe d'états **LangGraph** articulé autour de **5 agents spécialisés** :
+- Recherche hybride (BM25 + FAISS, fusion RRF) suivie d'un reclassement par Cross-Encoder et d'un seuil de pertinence.
+- Détection de posture par NLI (DeBERTa-v3) : soutient, contredit, neutre.
+- Réponse rédigée par un LLM (Groq par défaut, fournisseur interchangeable) avec citations auditées.
+- Boucle de rétroaction : si les preuves sont insuffisantes, l'Analyseur reformule la recherche, dans la limite d'un nombre d'essais choisi.
+- Score de confiance décomposé en quatre dimensions, verdict à quatre états.
+- Interface web : suivi en direct des agents, graphe d'évidence, cartes de preuves, journal d'audit, JSON brut, thèmes clair et sombre.
+- Fonctionnement dégradé propre : sans clé API, le verdict est calculé sans réponse rédigée.
+- Déploiement en un seul conteneur Docker.
+
+---
+
+## 3. Architecture
+
+### Vue d'ensemble
+
+```mermaid
+flowchart LR
+    U[Navigateur<br/>React + Vite] -->|HTTP / SSE| A[API FastAPI]
+    A --> G[Graphe LangGraph<br/>6 agents]
+    G --> R[Recherche<br/>BM25 + FAISS + RRF]
+    G --> X[Cross-Encoder<br/>reranker]
+    G --> N[DeBERTa-v3<br/>NLI]
+    G -->|passages + claim| L[LLM via init_chat_model<br/>Groq par défaut]
+    R --> D[(data/<br/>chunks, index FAISS, BM25)]
+```
+
+L'API FastAPI sert à la fois l'interface construite (`frontend/dist`) et les endpoints `/api/*`. Il n'y a ni base de données externe ni service tiers obligatoire : le corpus et les index sont des fichiers dans `data/`. Seul le LLM est distant, et il est facultatif.
+
+### Pipeline multi-agents
+
+```mermaid
+flowchart TD
+    S([Claim]) --> A1[1. Analyseur]
+    A1 --> A2[2. Récupérateur]
+    A2 --> A3[3. Évaluateur]
+    A3 -->|preuves insuffisantes<br/>et essais restants| A1
+    A3 --> A4[4. Générateur]
+    A4 --> A5[5. Vérificateur]
+    A5 --> A6[6. Synthèse]
+    A6 --> E([Rapport + verdict])
+```
+
+| # | Agent | Rôle |
+|---|---|---|
+| 1 | **Analyseur** | Extrait les mots-clés techniques et cible les catégories arXiv. Aux tours suivants, reformule la requête (par le LLM s'il est actif, sinon par une heuristique). |
+| 2 | **Récupérateur** | Recherche hybride sur 15 candidats, reclassement Cross-Encoder, conservation des 3 meilleurs passages dont le score dépasse le seuil de pertinence. |
+| 3 | **Évaluateur** | Calcule la posture NLI de chaque passage et le verdict provisoire. Déclenche la rétroaction si le verdict est « Preuves insuffisantes » et qu'il reste des essais. |
+| 4 | **Générateur** | Fait rédiger au LLM une réponse fondée uniquement sur les passages, avec des citations exactes. Ne fait jamais échouer le pipeline : sans clé, sans passage ou en cas d'erreur, l'étape est signalée et ignorée. |
+| 5 | **Vérificateur** | Recherche chaque citation dans l'abstract stocké (correspondance exacte, sans appariement approximatif) et compare la position du LLM au verdict NLI. |
+| 6 | **Synthèse** | Calcule le score de confiance composite et assemble le rapport (`ClaimVerificationReport`, modèle Pydantic). |
+
+L'état partagé entre agents (`VerificationState`) contient notamment l'historique de rétroaction et le journal d'audit, cumulés d'un nœud à l'autre.
+
+### Recherche d'information
+
+1. **Collecte** : abstracts arXiv des catégories `cs.AI`, `cs.CL`, `cs.LG`, `cs.CV`, `cs.RO`, `cs.SE`, `cs.CR`.
+2. **Découpage** : chunks de 800 caractères avec 150 de chevauchement.
+3. **Recherche dense** : embeddings `BAAI/bge-small-en-v1.5` (384 dimensions) dans un index FAISS `IndexFlatIP`.
+4. **Recherche lexicale** : BM25Okapi (`k1 = 1,5`, `b = 0,75`), utile pour les acronymes et les termes exacts.
+5. **Fusion** : Reciprocal Rank Fusion avec `k = 60`.
+6. **Reclassement** : Cross-Encoder `ms-marco-MiniLM-L-6-v2`. Les passages dont le score est inférieur à 0,05 sont écartés avant le NLI : un passage hors sujet ne doit jamais servir de preuve. Quand la requête a été reformulée, la pertinence est toujours jugée contre l'affirmation d'origine.
+
+### Verdict et score de confiance
+
+**Verdict** à partir des postures NLI conclusives (probabilité d'au moins 0,60) :
+
+| Verdict | Condition |
+|---|---|
+| Soutenu | Au moins un passage soutient de façon conclusive, aucun ne contredit |
+| Réfuté | Au moins un passage contredit de façon conclusive, aucun ne soutient |
+| Sujet débattu | Au moins un passage soutient et au moins un contredit |
+| Preuves insuffisantes | Aucun passage conclusif, ou aucun passage retenu |
+
+**Score de confiance** : somme pondérée de quatre dimensions.
+
+| Dimension | Poids | Signification |
+|---|---|---|
+| Consensus | 35 % | Accord entre les passages retenus |
+| Cross-Encoder | 25 % | Pertinence sémantique moyenne des passages |
+| DeBERTa | 25 % | Certitude logique des postures NLI |
+| Récence | 15 % | Moyenne de `exp(-0,10 × âge en années)` |
+
+### Audit des citations
+
+- Chaque citation produite par le LLM est cherchée telle quelle, casse comprise, dans l'abstract de l'article cité, brut puis nettoyé comme au découpage.
+- La phrase retenue comme preuve pour chaque passage est auditée de la même façon.
+- Les citations non retrouvées sont conservées et marquées « Non retrouvée ».
+- Si la position du LLM diffère du verdict NLI, une alerte s'affiche : **le verdict affiché reste celui du NLI**.
+
+L'audit prouve qu'une citation existe dans l'abstract. Il ne prouve pas que la phrase de réponse qui l'entoure soit exacte.
+
+---
+
+## 4. Stack technique
+
+| Couche | Technologie | Rôle |
+|---|---|---|
+| Orchestration | LangGraph | Graphe d'états avec arête conditionnelle (boucle de rétroaction) |
+| LLM | LangChain `init_chat_model` + `langchain-groq` | Fournisseur et modèle choisis par variables d'environnement |
+| Embeddings | sentence-transformers, `bge-small-en-v1.5` | Représentation dense des chunks |
+| Index vectoriel | FAISS (`faiss-cpu`) | Recherche par similarité |
+| Recherche lexicale | `rank-bm25` | BM25Okapi |
+| Reclassement | Cross-Encoder `ms-marco-MiniLM-L-6-v2` | Pertinence fine des candidats |
+| NLI | Cross-Encoder `nli-deberta-v3-small` | Soutient, contredit, neutre |
+| Découpage | `langchain-text-splitters` | Chunks avec chevauchement |
+| Collecte | bibliothèque `arxiv` | Récupération des métadonnées et abstracts |
+| API | FastAPI, Uvicorn, Pydantic | REST, streaming SSE, validation des données |
+| Interface | React 19, Vite 8 | Application monopage, polices auto-hébergées |
+| Déploiement | Docker, Docker Compose | Une image : API et interface |
+
+Les modèles tournent sur CPU. Aucune carte graphique n'est nécessaire.
+
+---
+
+## 5. Structure du dépôt
 
 ```text
-                  ┌─────────────────────────────┐
-                  │ 1. Agent Analyseur          │
-                  │ Décomposition & requêtes    │
-                  └──────────────┬──────────────┘
-                                 │
-                                 ▼
-                  ┌─────────────────────────────┐
-                  │ 2. Agent Récupérateur       │
-                  │ BM25 + ChromaDB + Reranker  │
-                  └──────────────┬──────────────┘
-                                 │
-                                 ▼
-                  ┌─────────────────────────────┐
-                  │ 3. Agent Évaluateur         │
-                  │ Stance: Soutient / Contredit│
-                  └──────────────┬──────────────┘
-                                 │
-                                 ▼
-                  ┌─────────────────────────────┐
-                  │ 4. Agent Vérificateur       │
-                  │ Contrôle exact des citations│
-                  └──────────────┬──────────────┘
-                                 │
-             [Preuves insuffisantes ?] ──► (Boucle itérative vers Agent 1)
-                                 │
-                                 ▼ (Preuves validées)
-                  ┌─────────────────────────────┐
-                  │ 5. Agent Synthèse           │
-                  │ Verdict, Confiance & Source │
-                  └─────────────────────────────┘
+.
+├── src/
+│   ├── config.py              Chemins, hyperparamètres, variables d'environnement
+│   ├── data/                  Collecte arXiv et découpage en chunks
+│   ├── retrieval/             FAISS, BM25, fusion hybride, Cross-Encoder
+│   ├── verification/          NLI, audit des citations, score de confiance, schémas
+│   ├── generation/            Création du LLM (init_chat_model) et génération de la réponse
+│   ├── agents/                Graphe LangGraph, nœuds, état partagé
+│   └── api/app.py             API FastAPI + service de l'interface
+├── scripts/                   Lignes de commande (collecte, index, pipeline, API)
+├── frontend/                  Interface React (Vite)
+├── data/                      Corpus et index (non versionné)
+├── Dockerfile                 Image unique (interface + API)
+├── docker-compose.yml
+├── requirements.txt           Dépendances complètes
+├── requirements.docker.txt    Sous-ensemble d'exécution
+└── .env.example               Modèle de configuration
 ```
 
-### Les 5 Agents Spécialisés :
-1. **Agent Analyseur :** Décompose l'affirmation et génère plusieurs sous-requêtes de recherche ciblées.
-2. **Agent Récupérateur :** Recherche hybride (lexicale **BM25** + sémantique **ChromaDB**) suivie d'un reclassement par **Cross-Encoder**.
-3. **Agent Évaluateur (Stance Detection) :** Détermine si le passage soutient, contredit ou est neutre via une double validation (**LLM + DeBERTa NLI**).
-4. **Agent Vérificateur :** Contrôle textuel déterministe pour s'assurer que chaque extrait existe textuellement dans le papier arXiv source.
-5. **Agent Synthèse :** Rédige le rapport final avec DOI, liens et calcule un score de confiance composite.
-
-🔁 **Boucle de rétroaction active :** Si les preuves collectées sont jugées insuffisantes, l'orchestrateur reformule des requêtes plus précises et relance une recherche ciblée.
-
 ---
 
-## 🛠️ Stack Technologique (100% Locale)
-
-| Composant | Technologie | Justification |
-| :--- | :--- | :--- |
-| **LLM** | [Groq](https://console.groq.com/) via `init_chat_model` (LangChain) ; fournisseur et modèle réglables par variables d'environnement | Rédaction de la réponse et reformulation des requêtes. API distante : seuls le claim et les passages récupérés lui sont envoyés. Désactivable (`LLM_ENABLED=false`) |
-| **Embeddings** | `bge-small-en-v1.5` (*sentence-transformers*) | Modèle d'embeddings dense compact et précis pour l'anglais scientifique |
-| **Base Vectorielle** | [ChromaDB](https://www.trychroma.com/) (ou FAISS) | Base vectorielle embarquée et persistante en local |
-| **Recherche Lexicale** | `rank_bm25` | Complémentaire au dense retrieval pour les acronymes et termes exacts |
-| **Reranker** | Cross-Encoder (`ms-marco-MiniLM-L-6-v2`) | Reclassement haute précision du Top-K passages |
-| **Validation NLI** | `DeBERTa-v3-MNLI` | Détection de posture logique sans hallucination |
-| **Orchestration Multi-Agents** | [LangGraph](https://langchain-ai.github.io/langgraph/) | Modélisation en graphe cyclique avec boucle conditionnelle |
-| **Backend & Interface** | FastAPI + Streamlit | API REST moderne et interface utilisateur interactive |
-| **Conteneurisation** | Docker & Docker Compose | Déploiement et reproductibilité clés en main |
-
----
-
-## 🚀 Installation & Démarrage
+## 6. Installation et exécution
 
 ### Prérequis
-* **Python 3.12** installé sur votre machine
-* **Node.js** (pour construire l'interface React)
-* Une **clé API Groq** (gratuite : https://console.groq.com/keys) pour la réponse rédigée. Sans clé, le pipeline fonctionne quand même, sans réponse rédigée.
 
-### 1. Cloner le projet
+- Python 3.12
+- Node.js 20.19 ou plus (22.12 ou plus recommandé), uniquement pour construire l'interface hors Docker
+- Une clé API Groq (gratuite, https://console.groq.com/keys). Elle est facultative : sans elle, le verdict est calculé sans réponse rédigée.
+- Environ 2 Go de disque pour les dépendances et 0,5 Go pour les modèles, téléchargés au premier usage
+
+### Configurer la clé
+
 ```bash
-git clone https://github.com/votre-compte/Projet-S5.git
-cd Projet-S5
+cp .env.example .env      # Windows : copy .env.example .env
 ```
 
-### 2. Créer et activer l'environnement virtuel Python (3.12)
-```powershell
-# Sous Windows PowerShell :
-py -3.12 -m venv venv
-.\venv\Scripts\Activate.ps1
+Renseignez ensuite `GROQ_API_KEY` dans `.env`. Le fichier est ignoré par Git : ne le commitez jamais.
+
+### Option A : Docker (recommandée)
+
+Une seule image contient l'API et l'interface. Le corpus (`data/`) est monté depuis votre machine, et la clé est lue dans `.env` au lancement sans être copiée dans l'image.
+
+```bash
+docker compose up --build -d
 ```
 
-### 3. Installer les dépendances
-```powershell
+Ouvrez http://127.0.0.1:8001 (variable `APP_PORT` pour changer le port).
+
+```bash
+docker compose logs -f     # suivre le démarrage
+docker compose down        # arrêter
+```
+
+- Le premier build prend plusieurs minutes (PyTorch en version CPU).
+- Au premier lancement, les modèles Hugging Face se téléchargent dans le volume `hf_cache` ; la première vérification est donc lente.
+- Si `data/` est vide, construisez le corpus dans le conteneur (voir ci-dessous), en remplaçant `python` par `docker compose run --rm app python`.
+
+### Option B : exécution locale
+
+**1. Environnement virtuel et dépendances**
+
+```bash
+python -m venv venv
+venv\Scripts\activate              # Linux / macOS : source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 4. Configurer le LLM (Groq)
-```powershell
-copy .env.example .env
-# puis éditez .env : GROQ_API_KEY=<votre clé>
-```
-Variables d'environnement (fichier `.env`, jamais commité) :
+**2. Construire le corpus et les index** (une seule fois)
 
-| Variable | Défaut | Rôle |
-| :--- | :--- | :--- |
-| `GROQ_API_KEY` | (vide) | Clé API Groq. Absente : le LLM est désactivé, le reste fonctionne |
-| `LLM_PROVIDER` | `groq` | Fournisseur passé à `init_chat_model` |
-| `LLM_MODEL` | `llama-3.3-70b-versatile` | Modèle ([liste Groq](https://console.groq.com/docs/models)) |
-| `LLM_ENABLED` | `true` | `false` désactive toute génération |
-| `LLM_TEMPERATURE`, `LLM_TIMEOUT_SECONDS`, `LLM_MAX_RETRIES`, `LLM_MAX_TOKENS` | `0`, `30`, `2`, `800` | Réglages d'appel |
-| `LLM_ANSWER_LANGUAGE` | `French` | Langue de la réponse rédigée |
-
-### 5. Construire le corpus, puis lancer l'application
-```powershell
+```bash
 python scripts/run_collector.py --limit 100
 python scripts/run_chunker.py
 python scripts/run_indexer.py --reset
-python scripts/run_hybrid_search.py --reindex      # construit l'index BM25
-cd frontend; npm ci; npm run build; cd ..
-python scripts/run_api.py                          # option : --port 8001 si le 8000 est occupé
+python scripts/run_hybrid_search.py --reindex
 ```
-Ouvrez ensuite http://127.0.0.1:8000. (Développement de l'interface : `npm run dev` dans `frontend/`, avec `VITE_API_TARGET` si l'API n'est pas sur le port 8000.)
 
-**Interface** : design ALETHIA (thèmes sombre/clair, graphe d'évidence animé), polices auto-hébergées dans `frontend/src/assets/fonts/`. La progression des agents est lue en temps réel sur `/api/verify/stream` (SSE), boucle de rétroaction comprise. Le nom du produit se change dans `frontend/src/brand.js`.
+Pour un corpus plus grand : `python scripts/scale_up_corpus.py --target 3000` (collecte, découpage et indexation automatisés, plus long).
 
-### Docker (alternative aux étapes 2 à 5)
-Une seule image contient l'API et l'interface. Le corpus (`data/`) est monté en volume et la clé Groq est lue dans `.env` au lancement (jamais copiée dans l'image) :
-```powershell
-docker compose up --build -d      # puis http://127.0.0.1:8001 (APP_PORT pour changer le port)
-docker compose logs -f            # suivre le démarrage
-docker compose down               # arrêter
+**3. Construire l'interface**
+
+```bash
+cd frontend
+npm ci
+npm run build
+cd ..
 ```
-Le premier démarrage télécharge les modèles Hugging Face (≈ 0,5 Go) dans le volume `hf_cache`. Si `data/` est vide, construisez le corpus dans le conteneur : `docker compose run --rm app python scripts/run_collector.py --limit 100`, puis `run_chunker.py`, `run_indexer.py --reset` et `run_hybrid_search.py --reindex`.
+
+**4. Lancer l'application**
+
+```bash
+python scripts/run_api.py
+```
+
+Ouvrez http://127.0.0.1:8000. Si le port 8000 est occupé, utilisez `--port 8001`.
+
+La documentation interactive de l'API est disponible sur `/docs`.
+
+### Développement de l'interface
+
+```bash
+cd frontend
+npm run dev
+```
+
+Le serveur Vite (port 5173) redirige `/api` vers l'API. Si l'API n'écoute pas sur le port 8000, définissez la variable `VITE_API_TARGET` (par exemple `http://127.0.0.1:8001`). La commande `npm run lint` lance le linter.
+
+### Utilisation en ligne de commande
+
+Le pipeline complet s'exécute sans interface :
+
+```bash
+python scripts/run_agentic_pipeline.py --claim "Diffusion models improve image synthesis" --verbose
+python scripts/run_agentic_pipeline.py --claim "Diffusion models improve image synthesis" --json
+```
 
 ---
 
-## 📊 Évaluation Scientifique
+## 7. Configuration
 
-Le système est validé selon un protocole scientifique rigoureux :
-* **Jeux de données :** Benchmark académique **SciFact** + un jeu de test de **~100 claims en informatique** annotés manuellement.
-* **Métriques de Recherche (*Retrieval*) :** Recall@k, MRR (Mean Reciprocal Rank), nDCG.
-* **Métriques de Classification :** Accuracy et Macro-F1 score par classe (*Soutient, Contredit, Neutre*).
-* **Fidélité (*Faithfulness*) :** Taux de citations exactes mot pour mot vs taux d'hallucinations résiduelles.
-* **Étude d'Ablation :** Mesure comparative progressive :
-  $$\text{RAG Simple} \longrightarrow \text{RAG Hybride} \longrightarrow \text{Hybride + Reranker} \longrightarrow \text{Multi-Agents Complet}$$
+### Variables d'environnement (`.env`)
+
+| Variable | Défaut | Rôle |
+|---|---|---|
+| `GROQ_API_KEY` | (vide) | Clé du fournisseur. Absente : le LLM est désactivé, le reste fonctionne |
+| `LLM_PROVIDER` | `groq` | Fournisseur passé à `init_chat_model` |
+| `LLM_MODEL` | `llama-3.3-70b-versatile` | Modèle (liste : https://console.groq.com/docs/models) |
+| `LLM_ENABLED` | `true` | `false` désactive toute génération |
+| `LLM_TEMPERATURE` | `0` | Température d'échantillonnage |
+| `LLM_TIMEOUT_SECONDS` | `30` | Délai maximal d'un appel |
+| `LLM_MAX_RETRIES` | `2` | Nouvelles tentatives réseau |
+| `LLM_MAX_TOKENS` | `800` | Longueur maximale de la sortie |
+| `LLM_ANSWER_LANGUAGE` | `French` | Langue de la réponse rédigée |
+
+Pour utiliser un autre fournisseur, installez le paquet `langchain-<fournisseur>` correspondant et renseignez `LLM_PROVIDER`, `LLM_MODEL` et la variable de clé propre au fournisseur.
+
+### Hyperparamètres (`src/config.py`)
+
+| Paramètre | Valeur | Rôle |
+|---|---|---|
+| `DEFAULT_CHUNK_SIZE` / `DEFAULT_CHUNK_OVERLAP` | 800 / 150 | Découpage |
+| `RRF_K` | 60 | Fusion hybride |
+| `DEFAULT_RERANK_CANDIDATES` / `DEFAULT_RERANK_TOP_K` | 15 / 3 | Candidats puis passages conservés |
+| `RERANK_MIN_RELEVANCE` | 0,05 | Seuil de pertinence du Cross-Encoder |
+| `NLI_CONFIDENCE_THRESHOLD` | 0,60 | Probabilité minimale pour qu'une posture soit conclusive |
+| `WEIGHT_*` | 0,35 / 0,25 / 0,25 / 0,15 | Poids du score de confiance |
+| `RECENCY_DECAY_RATE` | 0,10 | Décroissance de la récence, par an |
 
 ---
 
-## 👥 Auteurs & Encadrement
+## 8. Utilisation
 
-* **Étudiants :** Bilal MALIH • Oussama MAHI
-* **Encadrante :** Pr. Karima MOUMANE
-* **Cadre académique :** Projet de Semestre 5 (S5) — Cursus Ingénieur / Master Informatique
+1. Saisissez une affirmation **en anglais** (le corpus et les modèles sont anglophones), de 5 à 500 caractères.
+2. Choisissez le nombre maximal d'essais : 1 désactive la boucle de rétroaction, 3 autorise deux reformulations.
+3. Lancez la vérification et suivez les six agents en direct.
+4. Lisez le résultat :
+   - le **verdict** et la **confiance**, avec la décomposition en quatre dimensions ;
+   - le **graphe d'évidence** : un nœud par passage, couleur selon la posture, trait épais selon la pertinence, pointillés pour les passages écartés ;
+   - la **réponse du LLM**, ses citations (« Vérifiée » ou « Non retrouvée ») et les alertes éventuelles ;
+   - les **passages** classés, avec leurs scores, le changement de rang et les liens arXiv et PDF ;
+   - le **journal d'audit** des agents et la **réponse JSON** brute de l'API.
+
+Exemples à essayer :
+
+```text
+Memory-enhanced meta-reinforcement learning agents can adapt quickly to unseen tasks at test time without retraining.
+Diffusion models improve image synthesis.
+Photosynthetic bacteria can transmit encrypted data between colonies.
+```
+
+La première est adossée à un article du corpus, la deuxième est générale, la troisième est hors corpus et doit aboutir à « Preuves insuffisantes ».
+
+---
+
+## 9. Référence de l'API
+
+| Méthode | Route | Description |
+|---|---|---|
+| `GET` | `/api/health` | État du service et mode d'exécution (LLM actif ou non) |
+| `GET` | `/api/stats` | Taille du corpus, état des index, état du LLM |
+| `POST` | `/api/verify` | Exécute le pipeline et renvoie le rapport complet |
+| `POST` | `/api/verify/stream` | Même pipeline en Server-Sent Events : événements `START`, `NODE_UPDATE` (un par agent), puis `DONE` avec le rapport |
+
+Corps de requête de `/api/verify` et `/api/verify/stream` :
+
+```json
+{ "claim": "Diffusion models improve image synthesis", "max_retries": 2 }
+```
+
+`claim` fait de 5 à 500 caractères ; `max_retries` est le nombre maximal de rétroactions, de 0 à 3.
+
+Principaux champs de la réponse : `verdict`, `verdict_fr`, `confidence_score`, `confidence_breakdown`, `supports_count`, `refutes_count`, `neutral_count`, `discarded_passages`, `evidences[]`, `answer` (texte, position, citations et leur statut d'audit), `llm` (état, modèle, latence), `agent_logs[]`, `feedback_history[]`, `iteration_count`.
+
+---
+
+## 10. Limites connues
+
+- **Corpus restreint** : la configuration par défaut indexe 100 articles. Une affirmation sur un sujet absent donne « Preuves insuffisantes », ce qui est le comportement voulu et non une erreur.
+- **Abstracts seulement** : les articles complets ne sont ni lus ni indexés.
+- **Anglais** : les affirmations doivent être en anglais.
+- **Trois passages par vérification** : le pipeline conserve les 3 meilleurs passages après reclassement.
+- **NLI sur affirmations simples** : le modèle juge une proposition à la fois. Les affirmations longues ou composées donnent souvent un résultat neutre.
+- **Seuils non calibrés** : les seuils de pertinence et de décision ont été fixés sur quelques dizaines de cas observés, sans benchmark.
+- **LLM distant et variable** : avec Groq, l'affirmation et les passages sélectionnés sont envoyés à une API externe. Une réponse du modèle peut être vide ou invalide ; un seul nouvel essai est tenté, puis l'étape est signalée en erreur sans bloquer le verdict.
+- **Audit partiel** : seules les citations sont contrôlées, pas la prose de la réponse rédigée.
+- **Démarrage à froid** : la première requête après un lancement charge les modèles et prend de 10 secondes à quelques minutes, selon la machine et le téléchargement initial.
+- **Pas de tests automatisés** pour le moment.
+
+---
+
+## 11. Évaluation et perspectives
+
+L'évaluation quantitative n'est pas encore réalisée. Le protocole envisagé :
+
+- jeux de données : benchmark **SciFact** et un jeu d'environ 100 affirmations en informatique annotées manuellement ;
+- recherche : Recall@k, MRR, nDCG ;
+- classification : exactitude et F1 macro par classe (soutient, contredit, neutre) ;
+- fidélité : taux de citations retrouvées dans les abstracts ;
+- ablation : RAG simple, puis RAG hybride, puis hybride avec reclassement, puis pipeline multi-agents complet.
+
+Pistes d'amélioration : calibrer les seuils sur un benchmark, indexer les articles complets, élargir le corpus, ajouter des tests automatisés, auditer la prose de la réponse rédigée.
+
+---
+
+## 12. Auteurs et encadrement
+
+- **Étudiants** : Bilal MALIH, Oussama MAHI
+- **Encadrante** : Pr. Karima MOUMANE
+- **Cadre académique** : Projet de Semestre 5 (S5), cursus ingénieur / master informatique
