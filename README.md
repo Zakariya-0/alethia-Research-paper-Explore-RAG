@@ -386,22 +386,6 @@ Principaux champs de la réponse : `verdict`, `verdict_fr`, `confidence_score`, 
 
 ---
 
-## 11. Évaluation et perspectives
 
-L'évaluation quantitative n'est pas encore réalisée. Le protocole envisagé :
 
-- jeux de données : benchmark **SciFact** et un jeu d'environ 100 affirmations en informatique annotées manuellement ;
-- recherche : Recall@k, MRR, nDCG ;
-- classification : exactitude et F1 macro par classe (soutient, contredit, neutre) ;
-- fidélité : taux de citations retrouvées dans les abstracts ;
-- ablation : RAG simple, puis RAG hybride, puis hybride avec reclassement, puis pipeline multi-agents complet.
 
-Pistes d'amélioration : calibrer les seuils sur un benchmark, indexer les articles complets, élargir le corpus, ajouter des tests automatisés, auditer la prose de la réponse rédigée.
-
----
-
-## 12. Auteurs et encadrement
-
-- **Étudiants** : Bilal MALIH, Oussama MAHI
-- **Encadrante** : Pr. Karima MOUMANE
-- **Cadre académique** : Projet de Semestre 5 (S5), cursus ingénieur / master informatique
