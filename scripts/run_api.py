@@ -26,9 +26,18 @@ from src.api.app import app
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Lancement du serveur API REST pour la vérification scientifique.")
-    parser.add_argument("--host", type=str, default="127.0.0.1", help="Adresse IP d'écoute (défaut: 127.0.0.1)")
-    parser.add_argument("--port", type=int, default=8000, help="Port d'écoute (défaut: 8000)")
+    parser = argparse.ArgumentParser(
+        description="Lancement du serveur API REST pour la vérification scientifique."
+    )
+    parser.add_argument(
+        "--host",
+        type=str,
+        default="127.0.0.1",
+        help="Adresse IP d'écoute (défaut: 127.0.0.1)",
+    )
+    parser.add_argument(
+        "--port", type=int, default=8000, help="Port d'écoute (défaut: 8000)"
+    )
 
     args = parser.parse_args()
 
@@ -41,12 +50,7 @@ def main():
     print(f"• Métriques       : http://{args.host}:{args.port}/api/stats")
     print("=" * 80 + "\n")
 
-    uvicorn.run(
-        app,
-        host=args.host,
-        port=args.port,
-        log_level="info"
-    )
+    uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 
 
 if __name__ == "__main__":

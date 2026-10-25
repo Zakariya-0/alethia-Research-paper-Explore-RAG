@@ -49,50 +49,51 @@ def main():
         "--claim",
         type=str,
         default="Video world models retain visual memory of generated content",
-        help="L'affirmation scientifique à soumettre au collège d'agents"
+        help="L'affirmation scientifique à soumettre au collège d'agents",
     )
 
     parser.add_argument(
         "--max-retries",
         type=int,
         default=2,
-        help="Nombre maximal de tours de rétroaction autorisés (défaut: 2)"
+        help="Nombre maximal de tours de rétroaction autorisés (défaut: 2)",
     )
 
     parser.add_argument(
         "--verbose",
         action="store_true",
-        help="Afficher le journal d'audit complet de chaque agent pas à pas"
+        help="Afficher le journal d'audit complet de chaque agent pas à pas",
     )
 
     parser.add_argument(
         "--json",
         action="store_true",
-        help="Afficher le rapport final au format JSON structuré"
+        help="Afficher le rapport final au format JSON structuré",
     )
 
     parser.add_argument(
         "--output",
         type=str,
         default=None,
-        help="Fichier de sortie pour exporter le rapport JSON"
+        help="Fichier de sortie pour exporter le rapport JSON",
     )
 
     args = parser.parse_args()
 
     if not args.json:
         print("\n" + "=" * 85)
-        print("🤖 PLATEFORME MULTI-AGENTS LANGGRAPH — VÉRIFICATION SCIENTIFIQUE SOUVERAINE")
+        print(
+            "🤖 PLATEFORME MULTI-AGENTS LANGGRAPH — VÉRIFICATION SCIENTIFIQUE SOUVERAINE"
+        )
         print("=" * 85)
-        print(f"• Affirmation (Claim)     : \"{args.claim}\"")
+        print(f'• Affirmation (Claim)     : "{args.claim}"')
         print(f"• Max boucles rétroaction : {args.max_retries}")
         print("=" * 85 + "\n")
         print("⏳ Lancement de l'orchestration multi-agents LangGraph...\n")
 
     # Exécution du graphe d'états complet
     final_state = verify_claim_agentic(
-        claim=args.claim,
-        max_feedback_iterations=args.max_retries
+        claim=args.claim, max_feedback_iterations=args.max_retries
     )
 
     report_dict = final_state.get("final_report", {})
@@ -127,23 +128,39 @@ def main():
 
     print("\n" + "=" * 85)
     print(f"⚖️ VERDICT FINAL : {report_dict.get('verdict_fr', 'Inconnu')}")
-    print(f"• Score de certitude composite  : {report_dict.get('confidence_score', 0.0) * 100:.1f}%")
-    print(f"• Équilibre des sources         : {report_dict.get('supports_count', 0)} Soutient | {report_dict.get('refutes_count', 0)} Contredit | {report_dict.get('neutral_count', 0)} Neutre")
-    print(f"• Tours d'exécution             : {final_state.get('iteration_count', 0) + 1}")
+    print(
+        f"• Score de certitude composite  : {report_dict.get('confidence_score', 0.0) * 100:.1f}%"
+    )
+    print(
+        f"• Équilibre des sources         : {report_dict.get('supports_count', 0)} Soutient | {report_dict.get('refutes_count', 0)} Contredit | {report_dict.get('neutral_count', 0)} Neutre"
+    )
+    print(
+        f"• Tours d'exécution             : {final_state.get('iteration_count', 0) + 1}"
+    )
     print("=" * 85)
 
     print("\n📊 DÉCOMPOSITION DU SCORE ÉPISTÉMIQUE :")
     print("-" * 85)
-    print(f"• Accord & Consensus  (Poids {weights.get('consensus', 0.35)*100:.0f}%) : {cb.get('score_consensus', 0.0)*100:.1f}%")
-    print(f"• Reranker Sémantique (Poids {weights.get('reranker', 0.25)*100:.0f}%) : {cb.get('score_reranker', 0.0)*100:.1f}%")
-    print(f"• Déduction NLI       (Poids {weights.get('nli', 0.25)*100:.0f}%) : {cb.get('score_nli', 0.0)*100:.1f}%")
-    print(f"• Récence Temporelle  (Poids {weights.get('recency', 0.15)*100:.0f}%) : {cb.get('score_recency', 0.0)*100:.1f}%")
+    print(
+        f"• Accord & Consensus  (Poids {weights.get('consensus', 0.35)*100:.0f}%) : {cb.get('score_consensus', 0.0)*100:.1f}%"
+    )
+    print(
+        f"• Reranker Sémantique (Poids {weights.get('reranker', 0.25)*100:.0f}%) : {cb.get('score_reranker', 0.0)*100:.1f}%"
+    )
+    print(
+        f"• Déduction NLI       (Poids {weights.get('nli', 0.25)*100:.0f}%) : {cb.get('score_nli', 0.0)*100:.1f}%"
+    )
+    print(
+        f"• Récence Temporelle  (Poids {weights.get('recency', 0.15)*100:.0f}%) : {cb.get('score_recency', 0.0)*100:.1f}%"
+    )
     print(f"➜ Justification : {cb.get('explanation', '')}")
     print("-" * 85)
 
     # 4. Détail des preuves et audits textuels
     evidences = report_dict.get("evidences", [])
-    print(f"\n📑 PREUVES VALIDÉES PAR L'AGENT VÉRIFICATEUR ({len(evidences)} extraits) :")
+    print(
+        f"\n📑 PREUVES VALIDÉES PAR L'AGENT VÉRIFICATEUR ({len(evidences)} extraits) :"
+    )
     print("=" * 85)
 
     for i, ev in enumerate(evidences, start=1):
@@ -151,16 +168,28 @@ def main():
         label = stance.get("label", "NEUTRAL")
         conf = stance.get("confidence", 0.0) * 100
 
-        badge = "🟢 SOUTIENT" if label == "SUPPORTS" else ("🔴 CONTREDIT" if label == "REFUTES" else "⚪ NEUTRE")
+        badge = (
+            "🟢 SOUTIENT"
+            if label == "SUPPORTS"
+            else ("🔴 CONTREDIT" if label == "REFUTES" else "⚪ NEUTRE")
+        )
 
         print(f"\n--- PREUVE #{i} : {badge} ({conf:.1f}% confiance NLI) ---")
         print(f"• Titre       : {ev.get('title')}")
-        print(f"• arXiv ID    : {ev.get('paper_id')} ({ev.get('published_date')}) | Catégorie: {ev.get('primary_category')}")
+        print(
+            f"• arXiv ID    : {ev.get('paper_id')} ({ev.get('published_date')}) | Catégorie: {ev.get('primary_category')}"
+        )
         print(f"• URL arXiv   : {ev.get('entry_id')}")
-        print(f"• Rerank      : {ev.get('rerank_score', 0.0)*100:.1f}% (Rang initial: #{ev.get('original_hybrid_rank')} ➜ #{ev.get('final_rank')})")
-        
+        print(
+            f"• Rerank      : {ev.get('rerank_score', 0.0)*100:.1f}% (Rang initial: #{ev.get('original_hybrid_rank')} ➜ #{ev.get('final_rank')})"
+        )
+
         audit = ev.get("citation_check", {})
-        audit_badge = "✅ VALIDÉ MOT POUR MOT" if audit.get("is_valid") else "❌ ALIEN / NON TROUVÉ"
+        audit_badge = (
+            "✅ VALIDÉ MOT POUR MOT"
+            if audit.get("is_valid")
+            else "❌ ALIEN / NON TROUVÉ"
+        )
         print(f"• Audit textuel : {audit_badge}")
 
         if args.verbose:

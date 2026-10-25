@@ -39,7 +39,9 @@ from src.retrieval.vector_store import VectorStoreManager
 
 def load_data():
     if not FAISS_METADATA_FILE.exists():
-        print(f"[ERREUR] Le fichier de métadonnées {FAISS_METADATA_FILE} est introuvable.")
+        print(
+            f"[ERREUR] Le fichier de métadonnées {FAISS_METADATA_FILE} est introuvable."
+        )
         sys.exit(1)
 
     with open(FAISS_METADATA_FILE, "r", encoding="utf-8") as f:
@@ -52,14 +54,22 @@ def show_stats(metadata):
     total_chunks = len(metadata)
     unique_papers = len(set(m["paper_id"] for m in metadata))
     categories = Counter(m["primary_category"] for m in metadata)
-    avg_words = sum(len(m["raw_content"].split()) for m in metadata) / total_chunks if total_chunks else 0
+    avg_words = (
+        sum(len(m["raw_content"].split()) for m in metadata) / total_chunks
+        if total_chunks
+        else 0
+    )
 
     print("\n" + "=" * 70)
     print("📊 STATISTIQUES DE LA BASE DE DONNÉES VECTORIELLE")
     print("=" * 70)
     print(f"📁 Dossier de stockage   : {VECTOR_DB_DIR}")
-    print(f"🧠 Index binaire FAISS   : {FAISS_INDEX_FILE.name} ({FAISS_INDEX_FILE.stat().st_size / 1024:.1f} KB)")
-    print(f"📋 Fichier métadonnées   : {FAISS_METADATA_FILE.name} ({FAISS_METADATA_FILE.stat().st_size / 1024:.1f} KB)")
+    print(
+        f"🧠 Index binaire FAISS   : {FAISS_INDEX_FILE.name} ({FAISS_INDEX_FILE.stat().st_size / 1024:.1f} KB)"
+    )
+    print(
+        f"📋 Fichier métadonnées   : {FAISS_METADATA_FILE.name} ({FAISS_METADATA_FILE.stat().st_size / 1024:.1f} KB)"
+    )
     print(f"📄 Nombre total de chunks: {total_chunks}")
     print(f"📚 Articles uniques       : {unique_papers}")
     print(f"📝 Longueur moyenne      : {avg_words:.1f} mots / chunk")
@@ -76,23 +86,29 @@ def list_items(metadata, limit=10):
     print("=" * 70)
 
     for i, m in enumerate(metadata[:limit], start=1):
-        print(f"\n[#{i}] ID: {m['chunk_id']} | Papier: {m['paper_id']} | Cat: {m['primary_category']}")
+        print(
+            f"\n[#{i}] ID: {m['chunk_id']} | Papier: {m['paper_id']} | Cat: {m['primary_category']}"
+        )
         print(f"   Titre    : {m['title']}")
-        authors = ", ".join(m['authors'][:3]) + ("..." if len(m['authors']) > 3 else "")
+        authors = ", ".join(m["authors"][:3]) + ("..." if len(m["authors"]) > 3 else "")
         print(f"   Auteurs  : {authors}")
         print(f"   Date     : {m['published_date']}")
         print(f"   Extrait  : \"{m['raw_content'][:130]}...\"")
 
     print("\n" + "=" * 70)
-    print(f"💡 Pour voir le texte complet d'un chunk : python scripts/inspect_db.py --view \"{metadata[0]['chunk_id']}\"")
+    print(
+        f"💡 Pour voir le texte complet d'un chunk : python scripts/inspect_db.py --view \"{metadata[0]['chunk_id']}\""
+    )
     print("=" * 70 + "\n")
 
 
 def search_items(metadata, keyword):
     keyword_lower = keyword.lower()
     matches = [
-        m for m in metadata
-        if keyword_lower in m['title'].lower() or keyword_lower in m['raw_content'].lower()
+        m
+        for m in metadata
+        if keyword_lower in m["title"].lower()
+        or keyword_lower in m["raw_content"].lower()
     ]
 
     print("\n" + "=" * 70)
@@ -111,7 +127,9 @@ def search_items(metadata, keyword):
 
 def view_item(metadata, query_id):
     # Chercher par chunk_id ou paper_id
-    matches = [m for m in metadata if m['chunk_id'] == query_id or m['paper_id'] == query_id]
+    matches = [
+        m for m in metadata if m["chunk_id"] == query_id or m["paper_id"] == query_id
+    ]
 
     if not matches:
         print(f"\n[INFO] Aucun passage trouvé avec l'identifiant '{query_id}'.\n")
@@ -130,17 +148,33 @@ def view_item(metadata, query_id):
         print(f"• DOI             : {m.get('doi') or 'Non spécifié'}")
         print(f"• URL arXiv       : {m['entry_id']}")
         print(f"• Lien PDF        : {m['pdf_url']}")
-        print("\n--- TEXTE BRUT DU PASSAGE (Utilisé pour vérification des citations) ---")
-        print(m['raw_content'])
+        print(
+            "\n--- TEXTE BRUT DU PASSAGE (Utilisé pour vérification des citations) ---"
+        )
+        print(m["raw_content"])
         print("-" * 70)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Inspecteur de la base de données vectorielle.")
-    parser.add_argument("--stats", action="store_true", help="Afficher les statistiques globales")
-    parser.add_argument("--list", type=int, nargs="?", const=10, help="Lister N premiers chunks (par défaut 10)")
-    parser.add_argument("--search", type=str, help="Chercher par mot-clé dans les textes et titres")
-    parser.add_argument("--view", type=str, help="Voir le détail complet d'un chunk ou paper_id")
+    parser = argparse.ArgumentParser(
+        description="Inspecteur de la base de données vectorielle."
+    )
+    parser.add_argument(
+        "--stats", action="store_true", help="Afficher les statistiques globales"
+    )
+    parser.add_argument(
+        "--list",
+        type=int,
+        nargs="?",
+        const=10,
+        help="Lister N premiers chunks (par défaut 10)",
+    )
+    parser.add_argument(
+        "--search", type=str, help="Chercher par mot-clé dans les textes et titres"
+    )
+    parser.add_argument(
+        "--view", type=str, help="Voir le détail complet d'un chunk ou paper_id"
+    )
 
     args = parser.parse_args()
     metadata = load_data()

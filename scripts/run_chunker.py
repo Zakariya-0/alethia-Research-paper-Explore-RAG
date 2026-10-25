@@ -30,7 +30,7 @@ from src.config import (
     DEFAULT_METADATA_FILE,
     DEFAULT_CHUNKS_FILE,
     DEFAULT_CHUNK_SIZE,
-    DEFAULT_CHUNK_OVERLAP
+    DEFAULT_CHUNK_OVERLAP,
 )
 from src.data.chunker import TextChunker
 
@@ -44,28 +44,28 @@ def main():
         "--input",
         type=str,
         default=str(DEFAULT_METADATA_FILE),
-        help=f"Fichier source des métadonnées (par défaut: {DEFAULT_METADATA_FILE})"
+        help=f"Fichier source des métadonnées (par défaut: {DEFAULT_METADATA_FILE})",
     )
 
     parser.add_argument(
         "--output",
         type=str,
         default=str(DEFAULT_CHUNKS_FILE),
-        help=f"Fichier destination des chunks (par défaut: {DEFAULT_CHUNKS_FILE})"
+        help=f"Fichier destination des chunks (par défaut: {DEFAULT_CHUNKS_FILE})",
     )
 
     parser.add_argument(
         "--chunk-size",
         type=int,
         default=DEFAULT_CHUNK_SIZE,
-        help=f"Taille maximale d'un chunk en caractères (par défaut: {DEFAULT_CHUNK_SIZE})"
+        help=f"Taille maximale d'un chunk en caractères (par défaut: {DEFAULT_CHUNK_SIZE})",
     )
 
     parser.add_argument(
         "--chunk-overlap",
         type=int,
         default=DEFAULT_CHUNK_OVERLAP,
-        help=f"Chevauchement entre chunks en caractères (par défaut: {DEFAULT_CHUNK_OVERLAP})"
+        help=f"Chevauchement entre chunks en caractères (par défaut: {DEFAULT_CHUNK_OVERLAP})",
     )
 
     args = parser.parse_args()
@@ -79,25 +79,27 @@ def main():
     print(f"• Chevauchement       : {args.chunk_overlap} caractères")
     print("=" * 70 + "\n")
 
-    chunker = TextChunker(
-        chunk_size=args.chunk_size,
-        chunk_overlap=args.chunk_overlap
-    )
+    chunker = TextChunker(chunk_size=args.chunk_size, chunk_overlap=args.chunk_overlap)
 
     chunks = chunker.process_metadata_file(
-        input_file=Path(args.input),
-        output_file=Path(args.output)
+        input_file=Path(args.input), output_file=Path(args.output)
     )
 
     # Calcul de quelques statistiques intéressantes
     total_chunks = len(chunks)
-    avg_words = sum(c.word_count for c in chunks) / total_chunks if total_chunks > 0 else 0
-    avg_chars = sum(c.char_count for c in chunks) / total_chunks if total_chunks > 0 else 0
+    avg_words = (
+        sum(c.word_count for c in chunks) / total_chunks if total_chunks > 0 else 0
+    )
+    avg_chars = (
+        sum(c.char_count for c in chunks) / total_chunks if total_chunks > 0 else 0
+    )
 
     print("\n" + "=" * 70)
     print(f"[OK] DÉCOUPAGE TERMINÉ AVEC SUCCÈS")
     print(f"• Nombre total de chunks générés : {total_chunks}")
-    print(f"• Moyenne par chunk             : {avg_words:.1f} mots ({avg_chars:.1f} caractères)")
+    print(
+        f"• Moyenne par chunk             : {avg_words:.1f} mots ({avg_chars:.1f} caractères)"
+    )
     print(f"• Fichier généré                : {args.output}")
     print("=" * 70 + "\n")
 

@@ -41,17 +41,14 @@ logger = logging.getLogger(__name__)
 # CLASSE RERANKER : CrossEncoderReranker
 # ==============================================================================
 
+
 class CrossEncoderReranker:
     """
     Réordonne une liste de passages candidats issus de la recherche hybride
     en évaluant l'attention croisée complète (Cross-Attention) entre requête et texte.
     """
 
-    def __init__(
-        self,
-        model_name: str = DEFAULT_RERANKER_MODEL,
-        device: str = "cpu"
-    ):
+    def __init__(self, model_name: str = DEFAULT_RERANKER_MODEL, device: str = "cpu"):
         """
         Initialise le modèle Cross-Encoder.
 
@@ -62,7 +59,9 @@ class CrossEncoderReranker:
         self.model_name = model_name
         self.device = device
 
-        logger.info(f"Chargement du Cross-Encoder '{self.model_name}' sur {self.device.upper()}...")
+        logger.info(
+            f"Chargement du Cross-Encoder '{self.model_name}' sur {self.device.upper()}..."
+        )
         self.model = CrossEncoder(self.model_name, device=self.device)
         logger.info("Cross-Encoder prêt à l'emploi.")
 
@@ -70,7 +69,7 @@ class CrossEncoderReranker:
         self,
         query: str,
         documents: List[Dict[str, Any]],
-        top_k: int = DEFAULT_RERANK_TOP_K
+        top_k: int = DEFAULT_RERANK_TOP_K,
     ) -> List[Dict[str, Any]]:
         """
         Reclasse les documents candidats en calculant leur score d'attention croisée.
@@ -87,10 +86,15 @@ class CrossEncoderReranker:
             logger.warning("Aucun document à reclasser.")
             return []
 
-        logger.info(f"Reclassement Cross-Encoder de {len(documents)} candidats pour la requête : '{query[:60]}...'")
+        logger.info(
+            f"Reclassement Cross-Encoder de {len(documents)} candidats pour la requête : '{query[:60]}...'"
+        )
 
         # 1. Préparation des paires (requête, contenu du document)
-        pairs = [(query, doc.get("search_content", doc.get("raw_content", ""))) for doc in documents]
+        pairs = [
+            (query, doc.get("search_content", doc.get("raw_content", "")))
+            for doc in documents
+        ]
 
         # 2. Prédiction des scores par le Cross-Encoder (logits bruts)
         raw_scores = self.model.predict(pairs)
@@ -101,15 +105,21 @@ class CrossEncoderReranker:
 
         # 4. Association des scores et calcul du changement de position
         scored_docs = []
-        for orig_rank, (doc, raw_s, norm_s) in enumerate(zip(documents, raw_scores, normalized_scores), start=1):
+        for orig_rank, (doc, raw_s, norm_s) in enumerate(
+            zip(documents, raw_scores, normalized_scores), start=1
+        ):
             doc_copy = dict(doc)
             doc_copy["original_hybrid_rank"] = orig_rank
             doc_copy["rerank_raw_score"] = round(float(raw_s), 4)
-            doc_copy["rerank_score"] = round(float(norm_s), 4) # Score probabilité entre 0.0 et 1.0
+            doc_copy["rerank_score"] = round(
+                float(norm_s), 4
+            )  # Score probabilité entre 0.0 et 1.0
             scored_docs.append(doc_copy)
 
         # 5. Tri par score de reclassement décroissant
-        reranked_docs = sorted(scored_docs, key=lambda d: d["rerank_score"], reverse=True)
+        reranked_docs = sorted(
+            scored_docs, key=lambda d: d["rerank_score"], reverse=True
+        )
 
         # 6. Mise à jour de l'information de rang final et calcul du delta
         final_top_k = []

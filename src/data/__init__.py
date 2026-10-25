@@ -10,5 +10,5 @@ __all__ = [
     "PaperMetadata",
     "TextChunker",
     "PaperChunk",
-    "clean_scientific_text"
+    "clean_scientific_text",
 ]

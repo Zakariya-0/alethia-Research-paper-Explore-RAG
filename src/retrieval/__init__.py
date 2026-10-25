@@ -12,5 +12,5 @@ __all__ = [
     "BM25Retriever",
     "tokenize_scientific",
     "HybridRetriever",
-    "CrossEncoderReranker"
+    "CrossEncoderReranker",
 ]

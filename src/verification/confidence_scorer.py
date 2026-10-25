@@ -35,7 +35,7 @@ from src.config import (
     WEIGHT_RERANKER,
     WEIGHT_NLI,
     WEIGHT_RECENCY,
-    RECENCY_DECAY_RATE
+    RECENCY_DECAY_RATE,
 )
 from src.verification.schemas import ConfidenceBreakdown
 
@@ -53,7 +53,7 @@ class ConfidenceScorer:
         weight_reranker: float = WEIGHT_RERANKER,
         weight_nli: float = WEIGHT_NLI,
         weight_recency: float = WEIGHT_RECENCY,
-        recency_decay_rate: float = RECENCY_DECAY_RATE
+        recency_decay_rate: float = RECENCY_DECAY_RATE,
     ):
         """
         Initialise les pondérations du score de confiance composite.
@@ -78,12 +78,14 @@ class ConfidenceScorer:
         """Extrait l'année de publication d'une chaîne de date (ex: '2024-03-15' -> 2024)."""
         if not date_str:
             return None
-        match = re.search(r'\b(19\d{2}|20\d{2})\b', str(date_str))
+        match = re.search(r"\b(19\d{2}|20\d{2})\b", str(date_str))
         if match:
             return int(match.group(1))
         return None
 
-    def calculate_recency_score(self, evaluated_passages: List[Dict[str, Any]]) -> float:
+    def calculate_recency_score(
+        self, evaluated_passages: List[Dict[str, Any]]
+    ) -> float:
         """
         Calcule le score de récence temporelle selon la loi de décroissance exponentielle :
         S_recency = (1 / N) * sum(exp(-lambda * age_i))
@@ -99,10 +101,13 @@ class ConfidenceScorer:
 
         # Cibler en priorité les articles concluants
         conclusive_passages = [
-            p for p in evaluated_passages
+            p
+            for p in evaluated_passages
             if p.get("nli_stance", {}).get("is_conclusive", False)
         ]
-        target_passages = conclusive_passages if conclusive_passages else evaluated_passages
+        target_passages = (
+            conclusive_passages if conclusive_passages else evaluated_passages
+        )
 
         # Dédupliquer par paper_id pour ne pas sur-pondérer un article découpé en plusieurs chunks
         seen_papers = set()
@@ -129,9 +134,7 @@ class ConfidenceScorer:
         return round(float(sum(recency_scores) / len(recency_scores)), 4)
 
     def calculate_consensus_score(
-        self,
-        evaluated_passages: List[Dict[str, Any]],
-        global_verdict: str
+        self, evaluated_passages: List[Dict[str, Any]], global_verdict: str
     ) -> float:
         """
         Évalue le niveau de consensus scientifique :
@@ -167,13 +170,13 @@ class ConfidenceScorer:
         if n_sup > 0 and n_ref == 0:
             if n_sup >= 2:
                 return 1.00  # Multi-sources concordantes
-            return 0.70      # Source unique
+            return 0.70  # Source unique
 
         # 3. Consensus unanime en faveur de la réfutation
         if n_ref > 0 and n_sup == 0:
             if n_ref >= 2:
                 return 1.00  # Multi-sources concordantes
-            return 0.70      # Source unique
+            return 0.70  # Source unique
 
         # 4. Aucun passage concluant trouvé (prestation neutre / absence de consensus)
         return 0.00
@@ -187,7 +190,8 @@ class ConfidenceScorer:
             return 0.0
 
         conclusive = [
-            p for p in evaluated_passages
+            p
+            for p in evaluated_passages
             if p.get("nli_stance", {}).get("is_conclusive", False)
         ]
         target = conclusive if conclusive else evaluated_passages
@@ -204,7 +208,8 @@ class ConfidenceScorer:
             return 0.0
 
         conclusive = [
-            p for p in evaluated_passages
+            p
+            for p in evaluated_passages
             if p.get("nli_stance", {}).get("is_conclusive", False)
         ]
 
@@ -222,9 +227,7 @@ class ConfidenceScorer:
         return round(float(avg_neutral * 0.40), 4)
 
     def compute_confidence(
-        self,
-        evaluated_passages: List[Dict[str, Any]],
-        global_verdict: str
+        self, evaluated_passages: List[Dict[str, Any]], global_verdict: str
     ) -> ConfidenceBreakdown:
         """
         Synthétise les 4 dimensions pour produire le ConfidenceBreakdown complet.
@@ -256,24 +259,38 @@ class ConfidenceScorer:
             "consensus": round(self.w_consensus, 2),
             "reranker": round(self.w_reranker, 2),
             "nli": round(self.w_nli, 2),
-            "recency": round(self.w_recency, 2)
+            "recency": round(self.w_recency, 2),
         }
 
         explanation_parts = []
         if s_consensus >= 0.90:
-            explanation_parts.append("consensus scientifique solide et répliqué sur plusieurs articles indépendants")
+            explanation_parts.append(
+                "consensus scientifique solide et répliqué sur plusieurs articles indépendants"
+            )
         elif s_consensus >= 0.65:
-            explanation_parts.append("preuve appuyée par une source unique solide mais sans réplication indépendante")
+            explanation_parts.append(
+                "preuve appuyée par une source unique solide mais sans réplication indépendante"
+            )
         elif global_verdict == "SUJET_DEBATTU":
-            explanation_parts.append("controverse active dans la littérature avec des sources contradictoires")
+            explanation_parts.append(
+                "controverse active dans la littérature avec des sources contradictoires"
+            )
         else:
             explanation_parts.append("absence de consensus tranché dans le corpus")
 
-        explanation_parts.append(f"pertinence sémantique Cross-Encoder de {s_reranker * 100:.1f}%")
+        explanation_parts.append(
+            f"pertinence sémantique Cross-Encoder de {s_reranker * 100:.1f}%"
+        )
         explanation_parts.append(f"certitude logique DeBERTa de {s_nli * 100:.1f}%")
-        explanation_parts.append(f"indice de récence temporelle de {s_recency * 100:.1f}%")
+        explanation_parts.append(
+            f"indice de récence temporelle de {s_recency * 100:.1f}%"
+        )
 
-        explanation = f"Score composite de {composite * 100:.1f}% justifié par : " + ", ".join(explanation_parts) + "."
+        explanation = (
+            f"Score composite de {composite * 100:.1f}% justifié par : "
+            + ", ".join(explanation_parts)
+            + "."
+        )
 
         return ConfidenceBreakdown(
             score_consensus=s_consensus,
@@ -282,5 +299,5 @@ class ConfidenceScorer:
             score_recency=s_recency,
             weights=weights_dict,
             composite_score=composite,
-            explanation=explanation
+            explanation=explanation,
         )

@@ -33,11 +33,7 @@ import numpy as np
 from pydantic import BaseModel, Field
 from sentence_transformers import CrossEncoder
 
-from src.config import (
-    DEFAULT_NLI_MODEL,
-    NLI_LABEL_MAPPING,
-    NLI_CONFIDENCE_THRESHOLD
-)
+from src.config import DEFAULT_NLI_MODEL, NLI_LABEL_MAPPING, NLI_CONFIDENCE_THRESHOLD
 
 logger = logging.getLogger(__name__)
 
@@ -46,20 +42,31 @@ logger = logging.getLogger(__name__)
 # SCHÉMA PYDANTIC DU RÉSULTAT NLI
 # ==============================================================================
 
+
 class StanceResult(BaseModel):
     """
     Structure formelle du verdict d'inférence logique pour un passage donné.
     """
-    label: str = Field(description="Posture dominante : 'SUPPORTS', 'REFUTES' ou 'NEUTRAL'")
-    confidence: float = Field(description="Probabilité associée au label dominant (entre 0.0 et 1.0)")
-    probabilities: Dict[str, float] = Field(description="Distribution complète des probabilités pour les 3 classes")
-    is_conclusive: bool = Field(description="True si la preuve est tranchée (confidence >= seuil et != NEUTRAL)")
+
+    label: str = Field(
+        description="Posture dominante : 'SUPPORTS', 'REFUTES' ou 'NEUTRAL'"
+    )
+    confidence: float = Field(
+        description="Probabilité associée au label dominant (entre 0.0 et 1.0)"
+    )
+    probabilities: Dict[str, float] = Field(
+        description="Distribution complète des probabilités pour les 3 classes"
+    )
+    is_conclusive: bool = Field(
+        description="True si la preuve est tranchée (confidence >= seuil et != NEUTRAL)"
+    )
     verdict_fr: str = Field(description="Libellé explicatif en français")
 
 
 # ==============================================================================
 # CLASSE PRINCIPALE : NLIEvaluator
 # ==============================================================================
+
 
 class NLIEvaluator:
     """
@@ -70,7 +77,7 @@ class NLIEvaluator:
         self,
         model_name: str = DEFAULT_NLI_MODEL,
         device: str = "cpu",
-        confidence_threshold: float = NLI_CONFIDENCE_THRESHOLD
+        confidence_threshold: float = NLI_CONFIDENCE_THRESHOLD,
     ):
         """
         Initialise le modèle DeBERTa NLI.
@@ -84,9 +91,13 @@ class NLIEvaluator:
         self.device = device
         self.threshold = confidence_threshold
 
-        logger.info(f"Chargement du modèle NLI '{self.model_name}' sur {self.device.upper()}...")
+        logger.info(
+            f"Chargement du modèle NLI '{self.model_name}' sur {self.device.upper()}..."
+        )
         self.model = CrossEncoder(self.model_name, device=self.device)
-        logger.info(f"Modèle NLI DeBERTa prêt. Seuil de décision : {self.threshold * 100:.0f}%.")
+        logger.info(
+            f"Modèle NLI DeBERTa prêt. Seuil de décision : {self.threshold * 100:.0f}%."
+        )
 
     def predict_stance(self, premise: str, hypothesis: str) -> StanceResult:
         """
@@ -103,14 +114,14 @@ class NLIEvaluator:
         logits = self.model.predict([(premise, hypothesis)])[0]
 
         # Calcul des probabilités via fonction Softmax : exp(z_i) / sum(exp(z))
-        exp_logits = np.exp(logits - np.max(logits)) # Stabilité numérique
+        exp_logits = np.exp(logits - np.max(logits))  # Stabilité numérique
         probs = exp_logits / np.sum(exp_logits)
 
         # Mapping des probabilités vers les labels normalisés
         prob_dict = {
             "REFUTES": round(float(probs[0]), 4),
             "SUPPORTS": round(float(probs[1]), 4),
-            "NEUTRAL": round(float(probs[2]), 4)
+            "NEUTRAL": round(float(probs[2]), 4),
         }
 
         # Détermination du label gagnant
@@ -134,13 +145,11 @@ class NLIEvaluator:
             confidence=confidence,
             probabilities=prob_dict,
             is_conclusive=is_conclusive,
-            verdict_fr=verdict_fr
+            verdict_fr=verdict_fr,
         )
 
     def evaluate_passages(
-        self,
-        claim: str,
-        passages: List[Dict[str, Any]]
+        self, claim: str, passages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """
         Évalue la posture de chaque passage retenu par le moteur de recherche.
@@ -183,7 +192,7 @@ class NLIEvaluator:
                 "confidence": 0.0,
                 "supports_count": 0,
                 "refutes_count": 0,
-                "neutral_count": 0
+                "neutral_count": 0,
             }
 
         supports_scores = []
@@ -231,5 +240,5 @@ class NLIEvaluator:
             "supports_count": n_sup,
             "refutes_count": n_ref,
             "neutral_count": n_neu,
-            "total_evaluated": len(evaluated_passages)
+            "total_evaluated": len(evaluated_passages),
         }

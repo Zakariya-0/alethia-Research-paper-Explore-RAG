@@ -39,14 +39,14 @@ from src.config import (
     DEFAULT_METADATA_FILE,
     DEFAULT_ARXIV_CATEGORIES,
     ARXIV_DELAY_SECONDS,
-    ARXIV_BATCH_SIZE
+    ARXIV_BATCH_SIZE,
 )
 
 # Configuration des logs pour un affichage propre dans la console
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
-    datefmt="%H:%M:%S"
+    datefmt="%H:%M:%S",
 )
 logger = logging.getLogger(__name__)
 
@@ -55,29 +55,48 @@ logger = logging.getLogger(__name__)
 # MODÈLE DE DONNÉES : Schéma d'un article scientifique (Pydantic)
 # ==============================================================================
 
+
 class PaperMetadata(BaseModel):
     """
     Modèle de données validant la structure des métadonnées d'un article arXiv.
     Garantit que chaque article collecté possède des types stricts et vérifiés.
     """
+
     paper_id: str = Field(description="Identifiant unique arXiv (ex: '2401.12345')")
     title: str = Field(description="Titre complet de l'article")
-    authors: List[str] = Field(default_factory=list, description="Liste des noms des auteurs")
+    authors: List[str] = Field(
+        default_factory=list, description="Liste des noms des auteurs"
+    )
     abstract: str = Field(description="Résumé / Abstract officiel de l'article")
-    categories: List[str] = Field(default_factory=list, description="Toutes les catégories attribuées (ex: ['cs.AI', 'cs.LG'])")
-    primary_category: str = Field(description="Catégorie principale de l'article (ex: 'cs.AI')")
-    published_date: str = Field(description="Date de publication au format ISO (AAAA-MM-JJ)")
+    categories: List[str] = Field(
+        default_factory=list,
+        description="Toutes les catégories attribuées (ex: ['cs.AI', 'cs.LG'])",
+    )
+    primary_category: str = Field(
+        description="Catégorie principale de l'article (ex: 'cs.AI')"
+    )
+    published_date: str = Field(
+        description="Date de publication au format ISO (AAAA-MM-JJ)"
+    )
     updated_date: str = Field(description="Date de dernière mise à jour au format ISO")
-    doi: Optional[str] = Field(default=None, description="DOI (Digital Object Identifier) si disponible")
+    doi: Optional[str] = Field(
+        default=None, description="DOI (Digital Object Identifier) si disponible"
+    )
     entry_id: str = Field(description="URL de la page web arXiv de l'article")
     pdf_url: str = Field(description="Lien de téléchargement direct du PDF")
-    local_pdf_path: Optional[str] = Field(default=None, description="Chemin local du fichier PDF s'il a été téléchargé")
-    collected_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat(), description="Date et heure de collecte")
+    local_pdf_path: Optional[str] = Field(
+        default=None, description="Chemin local du fichier PDF s'il a été téléchargé"
+    )
+    collected_at: str = Field(
+        default_factory=lambda: datetime.utcnow().isoformat(),
+        description="Date et heure de collecte",
+    )
 
 
 # ==============================================================================
 # CLASSE PRINCIPALE : Collecteur d'articles arXiv
 # ==============================================================================
+
 
 class ArxivCollector:
     """
@@ -90,7 +109,7 @@ class ArxivCollector:
         output_file: Path = DEFAULT_METADATA_FILE,
         pdf_dir: Path = PDFS_DIR,
         delay_seconds: float = ARXIV_DELAY_SECONDS,
-        page_size: int = ARXIV_BATCH_SIZE
+        page_size: int = ARXIV_BATCH_SIZE,
     ):
         """
         Initialise le collecteur.
@@ -108,9 +127,7 @@ class ArxivCollector:
 
         # Création du client arXiv avec gestion personnalisée du délai de politesse
         self.client = arxiv.Client(
-            page_size=self.page_size,
-            delay_seconds=self.delay_seconds,
-            num_retries=3
+            page_size=self.page_size, delay_seconds=self.delay_seconds, num_retries=3
         )
 
         # Assurer que les dossiers de destination existent
@@ -119,7 +136,9 @@ class ArxivCollector:
 
         # Charger la liste des identifiants déjà collectés pour éviter les doublons
         self.existing_ids: Set[str] = self._load_existing_ids()
-        logger.info(f"Collecteur initialisé. {len(self.existing_ids)} articles déjà présents dans {self.output_file.name}")
+        logger.info(
+            f"Collecteur initialisé. {len(self.existing_ids)} articles déjà présents dans {self.output_file.name}"
+        )
 
     def _load_existing_ids(self) -> Set[str]:
         """
@@ -139,12 +158,16 @@ class ArxivCollector:
                         if "paper_id" in data:
                             ids.add(data["paper_id"])
         except Exception as e:
-            logger.warning(f"Erreur lors de la lecture du fichier existant {self.output_file}: {e}")
+            logger.warning(
+                f"Erreur lors de la lecture du fichier existant {self.output_file}: {e}"
+            )
 
         return ids
 
     @staticmethod
-    def build_query(categories: Optional[List[str]] = None, keywords: Optional[List[str]] = None) -> str:
+    def build_query(
+        categories: Optional[List[str]] = None, keywords: Optional[List[str]] = None
+    ) -> str:
         """
         Construit la requête de recherche au format attendu par l'API arXiv.
         Exemple : 'cat:cs.AI OR cat:cs.CL' ou '(cat:cs.AI) AND (transformer OR llm)'
@@ -193,7 +216,7 @@ class ArxivCollector:
             updated_date=result.updated.strftime("%Y-%m-%d"),
             doi=result.doi,
             entry_id=result.entry_id,
-            pdf_url=result.pdf_url
+            pdf_url=result.pdf_url,
         )
 
     def save_paper(self, paper: PaperMetadata):
@@ -218,9 +241,11 @@ class ArxivCollector:
         try:
             logger.info(f"Téléchargement du PDF pour l'article {paper.paper_id}...")
             # On recrée une recherche ciblée sur cet ID pour utiliser la méthode de téléchargement native d'arxiv
-            paper_obj = next(self.client.results(arxiv.Search(id_list=[paper.paper_id])))
+            paper_obj = next(
+                self.client.results(arxiv.Search(id_list=[paper.paper_id]))
+            )
             paper_obj.download_pdf(dirpath=str(self.pdf_dir), filename=pdf_filename)
-            time.sleep(self.delay_seconds) # Respect du délai
+            time.sleep(self.delay_seconds)  # Respect du délai
             return str(target_path)
         except Exception as e:
             logger.error(f"Échec du téléchargement du PDF pour {paper.paper_id}: {e}")
@@ -231,7 +256,7 @@ class ArxivCollector:
         categories: Optional[List[str]] = None,
         keywords: Optional[List[str]] = None,
         max_results: int = 50,
-        download_pdfs: bool = False
+        download_pdfs: bool = False,
     ) -> List[PaperMetadata]:
         """
         Lance la collecte d'articles selon les critères définis.
@@ -247,7 +272,9 @@ class ArxivCollector:
         """
         query_str = self.build_query(categories=categories, keywords=keywords)
         logger.info(f"Lancement de la recherche avec la requête : '{query_str}'")
-        logger.info(f"Objectif : {max_results} articles (Téléchargement PDF : {'Oui' if download_pdfs else 'Non'})")
+        logger.info(
+            f"Objectif : {max_results} articles (Téléchargement PDF : {'Oui' if download_pdfs else 'Non'})"
+        )
 
         # On demande un pool suffisant pour compenser les doublons déjà présents
         search_limit = max_results + len(self.existing_ids)
@@ -255,7 +282,7 @@ class ArxivCollector:
             query=query_str,
             max_results=search_limit,
             sort_by=arxiv.SortCriterion.SubmittedDate,
-            sort_order=arxiv.SortOrder.Descending # Récupérer les plus récents en premier
+            sort_order=arxiv.SortOrder.Descending,  # Récupérer les plus récents en premier
         )
 
         collected: List[PaperMetadata] = []
@@ -279,7 +306,9 @@ class ArxivCollector:
                 self.save_paper(paper)
                 collected.append(paper)
 
-                logger.info(f"[+{len(collected)}] {paper.paper_id} : {paper.title[:65]}... ({paper.published_date})")
+                logger.info(
+                    f"[+{len(collected)}] {paper.paper_id} : {paper.title[:65]}... ({paper.published_date})"
+                )
 
                 if len(collected) >= max_results:
                     break
@@ -287,6 +316,8 @@ class ArxivCollector:
         except Exception as e:
             logger.error(f"Erreur pendant l'itération des résultats arXiv : {e}")
 
-        logger.info(f"Collecte terminée ! {len(collected)} nouveaux articles ajoutés ({skipped_count} doublons ignorés).")
+        logger.info(
+            f"Collecte terminée ! {len(collected)} nouveaux articles ajoutés ({skipped_count} doublons ignorés)."
+        )
         logger.info(f"Total actuel dans le corpus : {len(self.existing_ids)} articles.")
         return collected

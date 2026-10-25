@@ -45,27 +45,27 @@ def main():
         "--limit",
         type=int,
         default=25,
-        help="Nombre maximal d'articles à collecter (par défaut : 25)."
+        help="Nombre maximal d'articles à collecter (par défaut : 25).",
     )
 
     parser.add_argument(
         "--categories",
         nargs="+",
         default=None,
-        help=f"Catégories arXiv ciblées (par défaut : {' '.join(DEFAULT_ARXIV_CATEGORIES)})."
+        help=f"Catégories arXiv ciblées (par défaut : {' '.join(DEFAULT_ARXIV_CATEGORIES)}).",
     )
 
     parser.add_argument(
         "--keywords",
         nargs="+",
         default=None,
-        help="Mots-clés optionnels à rechercher dans le titre et le résumé."
+        help="Mots-clés optionnels à rechercher dans le titre et le résumé.",
     )
 
     parser.add_argument(
         "--download-pdfs",
         action="store_true",
-        help="Si activé, télécharge également les fichiers PDF dans data/pdfs/."
+        help="Si activé, télécharge également les fichiers PDF dans data/pdfs/.",
     )
 
     args = parser.parse_args()
@@ -76,7 +76,9 @@ def main():
     print(f"• Nombre demandé      : {args.limit}")
     print(f"• Catégories          : {args.categories or DEFAULT_ARXIV_CATEGORIES}")
     print(f"• Mots-clés           : {args.keywords or 'Aucun (tous les articles)'}")
-    print(f"• Téléchargement PDF  : {'Activé' if args.download_pdfs else 'Désactivé (Métadonnées & abstracts seuls)'}")
+    print(
+        f"• Téléchargement PDF  : {'Activé' if args.download_pdfs else 'Désactivé (Métadonnées & abstracts seuls)'}"
+    )
     print(f"• Fichier de sortie   : {DEFAULT_METADATA_FILE}")
     print("=" * 70 + "\n")
 
@@ -85,11 +87,13 @@ def main():
         categories=args.categories,
         keywords=args.keywords,
         max_results=args.limit,
-        download_pdfs=args.download_pdfs
+        download_pdfs=args.download_pdfs,
     )
 
     print("\n" + "=" * 70)
-    print(f"[OK] COLLECTE TERMINÉE : {len(papers)} nouveaux articles enregistrés avec succès.")
+    print(
+        f"[OK] COLLECTE TERMINÉE : {len(papers)} nouveaux articles enregistrés avec succès."
+    )
     print(f"[INFO] Fichier consultable : {DEFAULT_METADATA_FILE}")
     print("=" * 70 + "\n")
 

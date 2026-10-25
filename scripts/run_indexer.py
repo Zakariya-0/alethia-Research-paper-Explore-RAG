@@ -44,33 +44,33 @@ def main():
         "--input",
         type=str,
         default=str(DEFAULT_CHUNKS_FILE),
-        help=f"Fichier source des chunks (par défaut: {DEFAULT_CHUNKS_FILE})"
+        help=f"Fichier source des chunks (par défaut: {DEFAULT_CHUNKS_FILE})",
     )
 
     parser.add_argument(
         "--query",
         type=str,
         default="Language models reasoning and chain of thought",
-        help="Requête ou affirmation scientifique de test pour évaluer la recherche"
+        help="Requête ou affirmation scientifique de test pour évaluer la recherche",
     )
 
     parser.add_argument(
         "--top-k",
         type=int,
         default=3,
-        help="Nombre de résultats pertinents à afficher (par défaut: 3)"
+        help="Nombre de résultats pertinents à afficher (par défaut: 3)",
     )
 
     parser.add_argument(
         "--search-only",
         action="store_true",
-        help="Effectuer uniquement la recherche sans ré-indexer les chunks"
+        help="Effectuer uniquement la recherche sans ré-indexer les chunks",
     )
 
     parser.add_argument(
         "--reset",
         action="store_true",
-        help="Vider complètement la base vectorielle avant d'indexer"
+        help="Vider complètement la base vectorielle avant d'indexer",
     )
 
     args = parser.parse_args()
@@ -93,7 +93,9 @@ def main():
     if not args.search_only:
         input_path = Path(args.input)
         if not input_path.exists():
-            print(f"[ERREUR] Le fichier {input_path} n'existe pas. Veuillez exécuter run_chunker.py d'abord.")
+            print(
+                f"[ERREUR] Le fichier {input_path} n'existe pas. Veuillez exécuter run_chunker.py d'abord."
+            )
             return
 
         print(f"[INFO] Chargement des chunks depuis {input_path.name}...")
@@ -106,7 +108,9 @@ def main():
 
         print(f"[INFO] {len(chunks)} chunks chargés. Calcul des embeddings en cours...")
         vstore.index_chunks(chunks)
-        print(f"[OK] Indexation terminée. Total dans FAISS : {vstore.count()} chunks.\n")
+        print(
+            f"[OK] Indexation terminée. Total dans FAISS : {vstore.count()} chunks.\n"
+        )
 
     # Phase de Recherche de Test
     if args.query:
@@ -120,10 +124,16 @@ def main():
             print("[INFO] Aucun résultat pertinent trouvé.")
         else:
             for rank, res in enumerate(results, start=1):
-                print(f"\n--- [RANG #{rank}] Similarité Cosinus : {res['score']:.4f} ---")
+                print(
+                    f"\n--- [RANG #{rank}] Similarité Cosinus : {res['score']:.4f} ---"
+                )
                 print(f"• Titre       : {res['title']}")
-                print(f"• Papier ID   : {res['paper_id']} ({res['published_date']}) | Catégorie: {res['primary_category']}")
-                authors_str = ", ".join(res['authors'][:4]) + ("..." if len(res['authors']) > 4 else "")
+                print(
+                    f"• Papier ID   : {res['paper_id']} ({res['published_date']}) | Catégorie: {res['primary_category']}"
+                )
+                authors_str = ", ".join(res["authors"][:4]) + (
+                    "..." if len(res["authors"]) > 4 else ""
+                )
                 print(f"• Auteurs     : {authors_str}")
                 print(f"• Lien arXiv  : {res['entry_id']}")
                 print(f"• Extrait brut:\n  \"{res['raw_content'][:280]}...\"")

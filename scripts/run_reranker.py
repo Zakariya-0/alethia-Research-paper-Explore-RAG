@@ -44,27 +44,27 @@ def main():
         "--query",
         type=str,
         default="diffusion models for video generation",
-        help="Affirmation ou requête scientifique à tester"
+        help="Affirmation ou requête scientifique à tester",
     )
 
     parser.add_argument(
         "--candidates",
         type=int,
         default=10,
-        help="Nombre de candidats préliminaires extraits par la recherche hybride (par défaut: 10)"
+        help="Nombre de candidats préliminaires extraits par la recherche hybride (par défaut: 10)",
     )
 
     parser.add_argument(
         "--top-k",
         type=int,
         default=3,
-        help="Nombre final de passages retenus après reclassement (par défaut: 3)"
+        help="Nombre final de passages retenus après reclassement (par défaut: 3)",
     )
 
     parser.add_argument(
         "--show-comparison",
         action="store_true",
-        help="Afficher la comparaison avant/après reclassement"
+        help="Afficher la comparaison avant/après reclassement",
     )
 
     args = parser.parse_args()
@@ -72,7 +72,7 @@ def main():
     print("\n" + "=" * 80)
     print("🚀 PIPELINE DE RECHERCHE EN 2 ÉTAPES (HYBRIDE + CROSS-ENCODER RERANKER)")
     print("=" * 80)
-    print(f"• Requête             : \"{args.query}\"")
+    print(f'• Requête             : "{args.query}"')
     print(f"• Candidats Étape 1   : {args.candidates} passages (FAISS + BM25 via RRF)")
     print(f"• Sélection Étape 2   : Top-{args.top_k} passages (Cross-Encoder MiniLM)")
     print("=" * 80 + "\n")
@@ -82,7 +82,9 @@ def main():
     reranker = CrossEncoderReranker()
 
     # 1. Étape 1 : Extraction préliminaire des candidats hybrides
-    print(f"[ÉTAPE 1] Extraction hybride de {args.candidates} candidats préliminaires...")
+    print(
+        f"[ÉTAPE 1] Extraction hybride de {args.candidates} candidats préliminaires..."
+    )
     candidates = hybrid.search(args.query, top_k=args.candidates)
     print(f"[OK] {len(candidates)} candidats extraits via RRF.\n")
 
@@ -96,12 +98,14 @@ def main():
         print("=" * 80)
         print("📊 COMPARAISON AVANT / APRÈS RECLASSEMENT PAR LE CROSS-ENCODER")
         print("=" * 80)
-        print(f"{'Rang Initial (RRF)':<22} | {'Rang Final (Reranker)':<24} | {'Évolution':<10} | Titre du Papier")
+        print(
+            f"{'Rang Initial (RRF)':<22} | {'Rang Final (Reranker)':<24} | {'Évolution':<10} | Titre du Papier"
+        )
         print("-" * 80)
         for p in final_passages:
             init_r = f"Rang #{p['original_hybrid_rank']}"
             fin_r = f"Rang #{p['final_rank']} (Prob: {p['rerank_score']:.1%})"
-            delta = p['rank_delta']
+            delta = p["rank_delta"]
             if delta > 0:
                 evol = f"▲ +{delta} (Monté)"
             elif delta < 0:
@@ -113,16 +117,26 @@ def main():
 
     # Affichage détaillé des passages finaux retenus pour le LLM
     print("=" * 80)
-    print(f"🎯 TOP-{len(final_passages)} PASSAGES FINAUX SÉLECTIONNÉS POUR LA VÉRIFICATION")
+    print(
+        f"🎯 TOP-{len(final_passages)} PASSAGES FINAUX SÉLECTIONNÉS POUR LA VÉRIFICATION"
+    )
     print("=" * 80)
 
     for p in final_passages:
-        print(f"\n--- [RANG #{p['final_rank']}] Score de Pertinence Cross-Encoder : {p['rerank_score']:.4f} ({p['rerank_score'] * 100:.1f}%) ---")
+        print(
+            f"\n--- [RANG #{p['final_rank']}] Score de Pertinence Cross-Encoder : {p['rerank_score']:.4f} ({p['rerank_score'] * 100:.1f}%) ---"
+        )
         print(f"• Titre           : {p['title']}")
-        print(f"• Papier ID       : {p['paper_id']} ({p['published_date']}) | Catégorie: {p['primary_category']}")
-        authors_str = ", ".join(p['authors'][:4]) + ("..." if len(p['authors']) > 4 else "")
+        print(
+            f"• Papier ID       : {p['paper_id']} ({p['published_date']}) | Catégorie: {p['primary_category']}"
+        )
+        authors_str = ", ".join(p["authors"][:4]) + (
+            "..." if len(p["authors"]) > 4 else ""
+        )
         print(f"• Auteurs         : {authors_str}")
-        print(f"• Découvert par   : {p['retrieved_by']} (Rang Hybride initial: #{p['original_hybrid_rank']})")
+        print(
+            f"• Découvert par   : {p['retrieved_by']} (Rang Hybride initial: #{p['original_hybrid_rank']})"
+        )
         print(f"• Lien arXiv      : {p['entry_id']}")
         print(f"• Extrait textuel exact pour preuve :")
         print(f"  \"{p['raw_content'][:300]}...\"")

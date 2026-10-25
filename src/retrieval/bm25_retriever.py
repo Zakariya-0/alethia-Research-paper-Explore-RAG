@@ -30,37 +30,141 @@ if sys.platform == "win32":
 import numpy as np
 from rank_bm25 import BM25Okapi
 
-from src.config import (
-    BM25_DIR,
-    BM25_INDEX_FILE,
-    BM25_METADATA_FILE,
-    BM25_K1,
-    BM25_B
-)
+from src.config import BM25_DIR, BM25_INDEX_FILE, BM25_METADATA_FILE, BM25_K1, BM25_B
 from src.data.chunker import PaperChunk
 
 logger = logging.getLogger(__name__)
 
 # Stopwords scientifiques anglais courants (évite de polluer l'index avec des mots vides)
 STOPWORDS = {
-    "a", "about", "above", "after", "again", "against", "all", "am", "an", "and",
-    "any", "are", "aren't", "as", "at", "be", "because", "been", "before", "being",
-    "below", "between", "both", "but", "by", "can", "can't", "cannot", "could",
-    "did", "do", "does", "doing", "down", "during", "each", "few", "for", "from",
-    "further", "had", "has", "have", "having", "he", "her", "here", "hers", "herself",
-    "him", "himself", "his", "how", "i", "if", "in", "into", "is", "isn't", "it",
-    "its", "itself", "more", "most", "no", "nor", "not", "of", "off", "on", "once",
-    "only", "or", "other", "our", "ours", "ourselves", "out", "over", "own", "same",
-    "so", "some", "such", "than", "that", "the", "their", "theirs", "them", "themselves",
-    "then", "there", "these", "they", "this", "those", "through", "to", "too", "under",
-    "until", "up", "very", "was", "wasn't", "we", "were", "what", "when", "where",
-    "which", "while", "who", "whom", "why", "with", "would", "you", "your", "yours"
+    "a",
+    "about",
+    "above",
+    "after",
+    "again",
+    "against",
+    "all",
+    "am",
+    "an",
+    "and",
+    "any",
+    "are",
+    "aren't",
+    "as",
+    "at",
+    "be",
+    "because",
+    "been",
+    "before",
+    "being",
+    "below",
+    "between",
+    "both",
+    "but",
+    "by",
+    "can",
+    "can't",
+    "cannot",
+    "could",
+    "did",
+    "do",
+    "does",
+    "doing",
+    "down",
+    "during",
+    "each",
+    "few",
+    "for",
+    "from",
+    "further",
+    "had",
+    "has",
+    "have",
+    "having",
+    "he",
+    "her",
+    "here",
+    "hers",
+    "herself",
+    "him",
+    "himself",
+    "his",
+    "how",
+    "i",
+    "if",
+    "in",
+    "into",
+    "is",
+    "isn't",
+    "it",
+    "its",
+    "itself",
+    "more",
+    "most",
+    "no",
+    "nor",
+    "not",
+    "of",
+    "off",
+    "on",
+    "once",
+    "only",
+    "or",
+    "other",
+    "our",
+    "ours",
+    "ourselves",
+    "out",
+    "over",
+    "own",
+    "same",
+    "so",
+    "some",
+    "such",
+    "than",
+    "that",
+    "the",
+    "their",
+    "theirs",
+    "them",
+    "themselves",
+    "then",
+    "there",
+    "these",
+    "they",
+    "this",
+    "those",
+    "through",
+    "to",
+    "too",
+    "under",
+    "until",
+    "up",
+    "very",
+    "was",
+    "wasn't",
+    "we",
+    "were",
+    "what",
+    "when",
+    "where",
+    "which",
+    "while",
+    "who",
+    "whom",
+    "why",
+    "with",
+    "would",
+    "you",
+    "your",
+    "yours",
 }
 
 
 # ==============================================================================
 # TOKENISEUR SCIENTIFIQUE
 # ==============================================================================
+
 
 def tokenize_scientific(text: str) -> List[str]:
     """
@@ -77,7 +181,7 @@ def tokenize_scientific(text: str) -> List[str]:
     # Regex capturant :
     # 1. Mots avec tirets ou points internes (ex: llama-3.1, cs.ai, v1.5)
     # 2. Mots alphanumériques standards
-    raw_tokens = re.findall(r'[a-zA-Z0-9]+(?:[-._][a-zA-Z0-9]+)*', text_lower)
+    raw_tokens = re.findall(r"[a-zA-Z0-9]+(?:[-._][a-zA-Z0-9]+)*", text_lower)
 
     # Filtrer les stopwords et les tokens d'un seul caractère non significatif
     tokens = [t for t in raw_tokens if t not in STOPWORDS and len(t) > 1]
@@ -87,6 +191,7 @@ def tokenize_scientific(text: str) -> List[str]:
 # ==============================================================================
 # GESTIONNAIRE BM25 : BM25Retriever
 # ==============================================================================
+
 
 class BM25Retriever:
     """
@@ -99,7 +204,7 @@ class BM25Retriever:
         index_file: Path = BM25_INDEX_FILE,
         metadata_file: Path = BM25_METADATA_FILE,
         k1: float = BM25_K1,
-        b: float = BM25_B
+        b: float = BM25_B,
     ):
         self.persist_dir = Path(persist_dir)
         self.persist_dir.mkdir(parents=True, exist_ok=True)
@@ -119,7 +224,9 @@ class BM25Retriever:
         """Charge l'index BM25 et les métadonnées depuis le disque."""
         if self.index_file.exists() and self.metadata_file.exists():
             try:
-                logger.info(f"Chargement de l'index BM25 existant depuis {self.index_file}...")
+                logger.info(
+                    f"Chargement de l'index BM25 existant depuis {self.index_file}..."
+                )
                 with open(self.index_file, "rb") as f:
                     self.corpus_tokens = pickle.load(f)
 
@@ -128,7 +235,9 @@ class BM25Retriever:
 
                 # Reconstruire l'objet BM25 à partir des tokens chargés
                 self.bm25 = BM25Okapi(self.corpus_tokens, k1=self.k1, b=self.b)
-                logger.info(f"Index BM25 chargé avec succès : {len(self.metadata)} documents prêts.")
+                logger.info(
+                    f"Index BM25 chargé avec succès : {len(self.metadata)} documents prêts."
+                )
             except Exception as e:
                 logger.warning(f"Erreur lors du chargement de l'index BM25 ({e}).")
                 self.bm25 = None
@@ -137,7 +246,9 @@ class BM25Retriever:
 
     def save(self):
         """Sauvegarde les tokens tokenisés du corpus et les métadonnées sur le disque."""
-        logger.info(f"Sauvegarde de l'index BM25 ({len(self.metadata)} documents) vers {self.persist_dir}...")
+        logger.info(
+            f"Sauvegarde de l'index BM25 ({len(self.metadata)} documents) vers {self.persist_dir}..."
+        )
         with open(self.index_file, "wb") as f:
             pickle.dump(self.corpus_tokens, f)
 
@@ -175,20 +286,22 @@ class BM25Retriever:
             tokens = tokenize_scientific(chunk.search_content)
             self.corpus_tokens.append(tokens)
 
-            self.metadata.append({
-                "chunk_id": chunk.chunk_id,
-                "paper_id": chunk.paper_id,
-                "chunk_index": chunk.chunk_index,
-                "title": chunk.title,
-                "authors": chunk.authors,
-                "published_date": chunk.published_date,
-                "primary_category": chunk.primary_category,
-                "doi": chunk.doi,
-                "entry_id": chunk.entry_id,
-                "pdf_url": chunk.pdf_url,
-                "raw_content": chunk.content,
-                "search_content": chunk.search_content
-            })
+            self.metadata.append(
+                {
+                    "chunk_id": chunk.chunk_id,
+                    "paper_id": chunk.paper_id,
+                    "chunk_index": chunk.chunk_index,
+                    "title": chunk.title,
+                    "authors": chunk.authors,
+                    "published_date": chunk.published_date,
+                    "primary_category": chunk.primary_category,
+                    "doi": chunk.doi,
+                    "entry_id": chunk.entry_id,
+                    "pdf_url": chunk.pdf_url,
+                    "raw_content": chunk.content,
+                    "search_content": chunk.search_content,
+                }
+            )
 
         # Création du modèle BM25Okapi
         self.bm25 = BM25Okapi(self.corpus_tokens, k1=self.k1, b=self.b)
@@ -200,10 +313,7 @@ class BM25Retriever:
         return total
 
     def search(
-        self,
-        query: str,
-        top_k: int = 5,
-        category_filter: Optional[str] = None
+        self, query: str, top_k: int = 5, category_filter: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Recherche les passages les plus pertinents selon le score BM25.
@@ -245,20 +355,24 @@ class BM25Retriever:
             if category_filter and meta.get("primary_category") != category_filter:
                 continue
 
-            results.append({
-                "chunk_id": meta.get("chunk_id"),
-                "score": round(score, 4), # Score brut BM25 (plus c'est élevé, plus c'est pertinent)
-                "paper_id": meta.get("paper_id"),
-                "title": meta.get("title"),
-                "authors": meta.get("authors", []),
-                "published_date": meta.get("published_date"),
-                "primary_category": meta.get("primary_category"),
-                "doi": meta.get("doi"),
-                "pdf_url": meta.get("pdf_url"),
-                "entry_id": meta.get("entry_id"),
-                "raw_content": meta.get("raw_content"),
-                "search_content": meta.get("search_content")
-            })
+            results.append(
+                {
+                    "chunk_id": meta.get("chunk_id"),
+                    "score": round(
+                        score, 4
+                    ),  # Score brut BM25 (plus c'est élevé, plus c'est pertinent)
+                    "paper_id": meta.get("paper_id"),
+                    "title": meta.get("title"),
+                    "authors": meta.get("authors", []),
+                    "published_date": meta.get("published_date"),
+                    "primary_category": meta.get("primary_category"),
+                    "doi": meta.get("doi"),
+                    "pdf_url": meta.get("pdf_url"),
+                    "entry_id": meta.get("entry_id"),
+                    "raw_content": meta.get("raw_content"),
+                    "search_content": meta.get("search_content"),
+                }
+            )
 
             if len(results) >= top_k:
                 break

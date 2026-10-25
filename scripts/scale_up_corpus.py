@@ -43,7 +43,7 @@ from src.config import (
     BM25_METADATA_FILE,
     DEFAULT_ARXIV_CATEGORIES,
     DEFAULT_CHUNK_SIZE,
-    DEFAULT_CHUNK_OVERLAP
+    DEFAULT_CHUNK_OVERLAP,
 )
 from src.data.collector import ArxivCollector
 from src.data.chunker import TextChunker, PaperChunk
@@ -55,7 +55,7 @@ from src.retrieval.hybrid_search import HybridRetriever
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
-    datefmt="%H:%M:%S"
+    datefmt="%H:%M:%S",
 )
 logger = logging.getLogger("ScaleUpCorpus")
 
@@ -88,7 +88,9 @@ def run_collection_step(target_total: int) -> int:
     print(f"• Objectif cible                : {target_total}")
 
     if needed <= 0:
-        print(f"[OK] Le corpus contient déjà {current_count} articles (>= {target_total}). Pas de collecte requise.")
+        print(
+            f"[OK] Le corpus contient déjà {current_count} articles (>= {target_total}). Pas de collecte requise."
+        )
         return current_count
 
     print(f"• Nouveaux articles à collecter : {needed}")
@@ -118,21 +120,27 @@ def run_collection_step(target_total: int) -> int:
         if quota <= 0:
             quota = 20
 
-        print(f"\n[Catégorie {cat}] Téléchargement des métadonnées pour ~{quota} articles...")
+        print(
+            f"\n[Catégorie {cat}] Téléchargement des métadonnées pour ~{quota} articles..."
+        )
         try:
             added_papers = collector.collect_papers(
                 categories=[cat],
                 max_results=quota,
-                download_pdfs=False  # Pas besoin des PDFs lourds, l'abstract et le titre suffisent
+                download_pdfs=False,  # Pas besoin des PDFs lourds, l'abstract et le titre suffisent
             )
             total_added += len(added_papers)
-            print(f"[OK] {len(added_papers)} articles ajoutés pour {cat} (Total ajouté: {total_added}/{needed})")
+            print(
+                f"[OK] {len(added_papers)} articles ajoutés pour {cat} (Total ajouté: {total_added}/{needed})"
+            )
         except Exception as e:
             logger.warning(f"Avertissement lors de la collecte pour {cat}: {e}")
             time.sleep(2)
 
     final_count = count_existing_papers(DEFAULT_METADATA_FILE)
-    print(f"\n[BILAN ÉTAPE 1] Total final dans le corpus : {final_count} articles scientifiques.")
+    print(
+        f"\n[BILAN ÉTAPE 1] Total final dans le corpus : {final_count} articles scientifiques."
+    )
     return final_count
 
 
@@ -146,18 +154,18 @@ def run_chunking_step() -> int:
 
     start_time = time.time()
     chunker = TextChunker(
-        chunk_size=DEFAULT_CHUNK_SIZE,
-        chunk_overlap=DEFAULT_CHUNK_OVERLAP
+        chunk_size=DEFAULT_CHUNK_SIZE, chunk_overlap=DEFAULT_CHUNK_OVERLAP
     )
 
     chunks = chunker.process_metadata_file(
-        input_file=DEFAULT_METADATA_FILE,
-        output_file=DEFAULT_CHUNKS_FILE
+        input_file=DEFAULT_METADATA_FILE, output_file=DEFAULT_CHUNKS_FILE
     )
 
     elapsed = time.time() - start_time
     total_chunks = len(chunks)
-    avg_words = sum(c.word_count for c in chunks) / total_chunks if total_chunks > 0 else 0
+    avg_words = (
+        sum(c.word_count for c in chunks) / total_chunks if total_chunks > 0 else 0
+    )
 
     print(f"\n[BILAN ÉTAPE 2] {total_chunks} chunks générés en {elapsed:.2f} secondes.")
     print(f"• Moyenne par chunk : {avg_words:.1f} mots")
@@ -188,12 +196,16 @@ def run_faiss_indexing_step(batch_size: int = 128) -> int:
             if line:
                 chunks.append(PaperChunk(**json.loads(line)))
 
-    print(f"[INFO] {len(chunks)} chunks chargés pour calcul des embeddings vectoriels...")
+    print(
+        f"[INFO] {len(chunks)} chunks chargés pour calcul des embeddings vectoriels..."
+    )
     indexed_count = vstore.index_chunks(chunks, batch_size=batch_size)
 
     elapsed = time.time() - start_time
     rate = indexed_count / elapsed if elapsed > 0 else 0
-    print(f"\n[BILAN ÉTAPE 3] {indexed_count} vecteurs indexés dans FAISS en {elapsed:.2f} s ({rate:.1f} chunks/sec).")
+    print(
+        f"\n[BILAN ÉTAPE 3] {indexed_count} vecteurs indexés dans FAISS en {elapsed:.2f} s ({rate:.1f} chunks/sec)."
+    )
     print(f"• Fichier binaire FAISS : {FAISS_INDEX_FILE}")
     return indexed_count
 
@@ -220,18 +232,22 @@ def run_bm25_indexing_step() -> int:
     indexed_count = bm25.index_chunks(chunks)
     elapsed = time.time() - start_time
 
-    print(f"\n[BILAN ÉTAPE 4] {indexed_count} documents indexés dans BM25 en {elapsed:.2f} secondes.")
+    print(
+        f"\n[BILAN ÉTAPE 4] {indexed_count} documents indexés dans BM25 en {elapsed:.2f} secondes."
+    )
     print(f"• Fichier BM25 : {BM25_INDEX_FILE}")
     return indexed_count
 
 
-def run_verification_test(sample_query: str = "Video world models retain visual memory of generated content"):
+def run_verification_test(
+    sample_query: str = "Video world models retain visual memory of generated content",
+):
     """
     Test de santé : exécute une recherche hybride sur la nouvelle base pour valider le bon fonctionnement.
     """
     print("\n" + "=" * 80)
     print("🔬 TEST DE VALIDATION SÉMANTIQUE SUR LA NOUVELLE BASE ÉLARGIE")
-    print(f"• Requête de test : \"{sample_query}\"")
+    print(f'• Requête de test : "{sample_query}"')
     print("=" * 80)
 
     vstore = VectorStoreManager()
@@ -241,9 +257,13 @@ def run_verification_test(sample_query: str = "Video world models retain visual 
     results = hybrid.search(sample_query, top_k=3)
 
     for i, res in enumerate(results, 1):
-        print(f"\n[RÉSULTAT #{i}] Score RRF: {res['rrf_score']:.5f} ({res['retrieved_by']})")
+        print(
+            f"\n[RÉSULTAT #{i}] Score RRF: {res['rrf_score']:.5f} ({res['retrieved_by']})"
+        )
         print(f"• Titre     : {res['title']}")
-        print(f"• ID arXiv  : {res['paper_id']} ({res['published_date']}) [{res['primary_category']}]")
+        print(
+            f"• ID arXiv  : {res['paper_id']} ({res['published_date']}) [{res['primary_category']}]"
+        )
         print(f"• Extrait   : \"{res['raw_content'][:200]}...\"")
 
     print("\n" + "=" * 80)
@@ -257,18 +277,18 @@ def main():
         "--target",
         type=int,
         default=3000,
-        help="Nombre total d'articles cible dans la base (défaut: 3000)"
+        help="Nombre total d'articles cible dans la base (défaut: 3000)",
     )
     parser.add_argument(
         "--batch-size",
         type=int,
         default=128,
-        help="Taille des lots pour le calcul des embeddings sur CPU (défaut: 128)"
+        help="Taille des lots pour le calcul des embeddings sur CPU (défaut: 128)",
     )
     parser.add_argument(
         "--skip-collection",
         action="store_true",
-        help="Sauter l'étape de collecte et ré-indexer uniquement les données actuelles"
+        help="Sauter l'étape de collecte et ré-indexer uniquement les données actuelles",
     )
 
     args = parser.parse_args()
