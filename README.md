@@ -64,31 +64,42 @@ Le système sait répondre **« Preuves insuffisantes »** ou **« Sujet débatt
 
 ### Vue d'ensemble
 
-```mermaid
-flowchart LR
-    U[Navigateur<br/>React + Vite] -->|HTTP / SSE| A[API FastAPI]
-    A --> G[Graphe LangGraph<br/>6 agents]
-    G --> R[Recherche<br/>BM25 + FAISS + RRF]
-    G --> X[Cross-Encoder<br/>reranker]
-    G --> N[DeBERTa-v3<br/>NLI]
-    G -->|passages + claim| L[LLM via init_chat_model<br/>Groq par défaut]
-    R --> D[(data/<br/>chunks, index FAISS, BM25)]
+```text
+Navigateur (React + Vite)
+        |
+        |  HTTP / SSE
+        v
+API FastAPI  (sert aussi l'interface construite : frontend/dist)
+        |
+        v
+Graphe LangGraph : 6 agents
+        |
+        +--> Recherche hybride : BM25 + FAISS + RRF --> data/ (chunks, index)
+        +--> Reclassement      : Cross-Encoder
+        +--> Posture NLI       : DeBERTa-v3
+        +--> LLM (facultatif)  : init_chat_model, Groq par défaut
+                                 reçoit l'affirmation et les passages retenus
 ```
 
 L'API FastAPI sert à la fois l'interface construite (`frontend/dist`) et les endpoints `/api/*`. Il n'y a ni base de données externe ni service tiers obligatoire : le corpus et les index sont des fichiers dans `data/`. Seul le LLM est distant, et il est facultatif.
 
 ### Pipeline multi-agents
 
-```mermaid
-flowchart TD
-    S([Claim]) --> A1[1. Analyseur]
-    A1 --> A2[2. Récupérateur]
-    A2 --> A3[3. Évaluateur]
-    A3 -->|preuves insuffisantes<br/>et essais restants| A1
-    A3 --> A4[4. Générateur]
-    A4 --> A5[5. Vérificateur]
-    A5 --> A6[6. Synthèse]
-    A6 --> E([Rapport + verdict])
+```text
+Affirmation
+    |
+    v
+[1 Analyseur] --> [2 Récupérateur] --> [3 Évaluateur]
+      ^                                       |
+      |   preuves insuffisantes               |
+      +-- et essais restants -----------------+
+                                              |
+                                              | sinon
+                                              v
+[6 Synthèse] <-- [5 Vérificateur] <-- [4 Générateur]
+      |
+      v
+Rapport + verdict
 ```
 
 | # | Agent | Rôle |
